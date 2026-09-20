@@ -240,4 +240,31 @@ describe("short tenure and F2 / search", () => {
     expect(result.combinationCount).toBe(16);
     expect(result.best?.result.totalTaxYen).toBeLessThan(1_861_869);
   });
+
+  it("does not slide simple-input service periods when searching receipt years", () => {
+    const result = searchReceiptYears(
+      input([
+        {
+          id: "company",
+          kind: "company",
+          incomeYen: 20_000_000,
+          serviceYears: 30,
+          receiptYear: 2030,
+        },
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          serviceYears: 20,
+          receiptYear: 2030,
+          optimizeReceiptYear: true,
+        },
+      ]),
+    );
+    const at2035 = result.hits.find((h) => h.receiptYears.dc === 2035);
+    const at2040 = result.hits.find((h) => h.receiptYears.dc === 2040);
+    expect(at2035?.result.totalTaxYen).toBe(1_368_544);
+    expect(at2040?.result.totalTaxYen).toBe(1_358_202);
+    expect(result.best?.receiptYears.dc).toBe(2038);
+  });
 });

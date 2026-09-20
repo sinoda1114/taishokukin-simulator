@@ -1,5 +1,5 @@
 import { defaultRuleset } from "./ruleset";
-import { ageInCalendarYear, simulate, yearOfAge } from "./simulate";
+import { ageInCalendarYear, freezeServiceIntervals, simulate, yearOfAge } from "./simulate";
 import type {
   BenefitInput,
   SearchHit,
@@ -52,18 +52,19 @@ export function searchReceiptYears(
   input: SimulationInput,
   ruleset: TaxRuleset = defaultRuleset,
 ): SearchResult {
-  const lists = input.benefits.map((b) => candidateYears(b, input, ruleset));
+  const frozen = freezeServiceIntervals(input);
+  const lists = frozen.benefits.map((b) => candidateYears(b, frozen, ruleset));
   const combos = cartesian(lists);
   const truncated = combos.length > SEARCH_COMBINATION_CAP;
   const used = truncated ? combos.slice(0, SEARCH_COMBINATION_CAP) : combos;
 
   const hits: SearchHit[] = used.map((years) => {
     const receiptYears: Record<string, number> = {};
-    const benefits = input.benefits.map((benefit, index) => {
+    const benefits = frozen.benefits.map((benefit, index) => {
       receiptYears[benefit.id] = years[index];
       return { ...benefit, receiptYear: years[index], optimizeReceiptYear: false };
     });
-    const next: SimulationInput = { ...input, benefits };
+    const next: SimulationInput = { ...frozen, benefits };
     return { receiptYears, result: simulate(next, ruleset) };
   });
 

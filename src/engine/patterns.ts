@@ -1,5 +1,5 @@
 import { defaultRuleset } from "./ruleset";
-import { simulate, yearOfAge } from "./simulate";
+import { freezeServiceIntervals, simulate, yearOfAge } from "./simulate";
 import type {
   BenefitInput,
   PatternComparison,
@@ -30,8 +30,9 @@ export function buildThreePatterns(
   ruleset: TaxRuleset = defaultRuleset,
 ): PatternComparison[] | null {
   if (!isCompanyPlusDcPair(input.benefits)) return null;
-  const company = input.benefits.find((b) => b.kind === "company");
-  const dc = input.benefits.find((b) => b.kind === "dc");
+  const frozen = freezeServiceIntervals(input);
+  const company = frozen.benefits.find((b) => b.kind === "company");
+  const dc = frozen.benefits.find((b) => b.kind === "dc");
   if (!company || !dc) return null;
 
   const age60 = input.birthYearMonth
@@ -74,7 +75,7 @@ export function buildThreePatterns(
     } else if (row.kind === "dc_first" && row.dcYear >= row.companyYear) {
       omitted = "会社の受取年がiDeCo開始可能年以前のため、この順は作れません";
     }
-    const nextInput = replaceBenefits(input, [
+    const nextInput = replaceBenefits(frozen, [
       withReceiptYear(company, row.companyYear),
       withReceiptYear(dc, row.dcYear),
     ]);

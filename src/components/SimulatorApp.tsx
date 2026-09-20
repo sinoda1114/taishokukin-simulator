@@ -171,7 +171,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
           </label>
         </div>
         <p className="muted">
-          簡易入力の期間は仮置きです。終了は受取年の12月、開始は（受取年−年数+1）年1月。詳しい年月があるときは区間で入れてください。
+          簡易入力の期間は仮置きです。終了は受取年の12月、開始は（受取年−年数+1）年1月。探索と3行比較では、いま表示している勤続期間を固定して受取年だけを動かします。
         </p>
         {input.benefits.map((benefit, index) => (
           <BenefitEditor

@@ -3,6 +3,7 @@ export {
   simulate,
   resolveBenefits,
   resolveBenefitIntervals,
+  freezeServiceIntervals,
   categoryOf,
   lookbackYears,
   yearOfAge,

@@ -90,6 +90,17 @@ export function resolveBenefits(
   }));
 }
 
+/** 受取年だけ動かす比較用。簡易入力の勤続期間を受取年に追随させない。 */
+export function freezeServiceIntervals(input: SimulationInput): SimulationInput {
+  return {
+    ...input,
+    benefits: resolveBenefits(input).map((benefit) => ({
+      ...benefit,
+      serviceYears: undefined,
+    })),
+  };
+}
+
 function usesPostAmendment(
   paymentYear: number,
   ruleMode: RuleMode,
