@@ -104,11 +104,15 @@ export async function logUsage(
   eventType: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const db = await getDb();
-  await db.insert(usageEvents).values({
-    id: id(12),
-    eventType,
-    payloadJson: JSON.stringify(payload),
-    createdAt: now(),
-  });
+  try {
+    const db = await getDb();
+    await db.insert(usageEvents).values({
+      id: id(12),
+      eventType,
+      payloadJson: JSON.stringify(payload),
+      createdAt: now(),
+    });
+  } catch {
+    // 利用ログの失敗で保存や画面を落とさない
+  }
 }

@@ -1,8 +1,8 @@
 import type { Client } from "@libsql/client";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { resolveDbConnection, type DbConnection, type DbEnv } from "./config";
-import { ddlStatements } from "./schema";
+import type { DbConnection } from "./config";
+import { CREATE_TABLES_SQL } from "./schema";
 
 export async function openClient(conn: DbConnection): Promise<Client> {
   if (conn.kind === "remote") {
@@ -15,15 +15,11 @@ export async function openClient(conn: DbConnection): Promise<Client> {
 }
 
 export async function applySchema(client: Client): Promise<void> {
-  for (const statement of ddlStatements()) {
+  for (const statement of CREATE_TABLES_SQL.split(";")
+    .map((sql) => sql.trim())
+    .filter(Boolean)) {
     await client.execute(statement);
   }
-}
-
-export async function openMigratedClient(env: DbEnv = process.env): Promise<Client> {
-  const client = await openClient(resolveDbConnection(env));
-  await applySchema(client);
-  return client;
 }
 
 function ensureLocalFileDir(url: string): void {

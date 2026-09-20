@@ -1,8 +1,9 @@
-import { openMigratedClient } from "./connection";
+import { applySchema, openClient } from "./connection";
 import { resolveDbConnection } from "./config";
 
 const conn = resolveDbConnection(process.env);
-await openMigratedClient();
+const client = await openClient(conn);
+await applySchema(client);
 console.log(
   conn.kind === "remote"
     ? "Turso スキーマを適用しました"

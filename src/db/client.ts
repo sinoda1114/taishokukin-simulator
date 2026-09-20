@@ -1,23 +1,32 @@
 import "server-only";
 
-import { drizzle } from "drizzle-orm/libsql";
-import { openMigratedClient } from "./connection";
+import type { LibSQLDatabase } from "drizzle-orm/libsql/driver-core";
+import { applySchema, openClient } from "./connection";
+import { resolveDbConnection } from "./config";
 import * as schema from "./schema";
 
-let db: ReturnType<typeof drizzle> | undefined;
-let schemaReady: Promise<void> | undefined;
-let sqlite: Awaited<ReturnType<typeof openMigratedClient>> | undefined;
+type AppDb = LibSQLDatabase<typeof schema>;
 
-async function ensureSchema(): Promise<void> {
-  sqlite ??= await openMigratedClient();
+let ready: Promise<AppDb> | undefined;
+
+async function connect(): Promise<AppDb> {
+  const conn = resolveDbConnection(process.env);
+  const client = await openClient(conn);
+  await applySchema(client);
+  if (conn.kind === "remote") {
+    const { drizzle } = await import("drizzle-orm/libsql/web");
+    return drizzle(client, { schema });
+  }
+  const { drizzle } = await import("drizzle-orm/libsql");
+  return drizzle(client, { schema });
 }
 
-export async function getDb() {
-  schemaReady ??= ensureSchema();
-  await schemaReady;
-  if (!sqlite) {
-    throw new Error("データベースクライアントの初期化に失敗しました");
+export async function getDb(): Promise<AppDb> {
+  ready ??= connect();
+  try {
+    return await ready;
+  } catch (error) {
+    ready = undefined;
+    throw error;
   }
-  db ??= drizzle(sqlite, { schema });
-  return db;
 }
