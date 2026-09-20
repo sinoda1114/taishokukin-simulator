@@ -26,10 +26,15 @@ function productCount(lists: number[][]): number {
   return lists.reduce((n, list) => n * Math.max(list.length, 1), 1);
 }
 
-function collapseToFirstRange(lists: number[][]): number[][] {
+function collapseToFirstRange(
+  lists: number[][],
+  receiptYears: number[],
+): number[][] {
   const first = lists.findIndex((list) => list.length > 1);
   if (first < 0) return lists;
-  return lists.map((list, index) => (index === first ? list : [list[0]]));
+  return lists.map((list, index) =>
+    index === first ? list : [receiptYears[index]],
+  );
 }
 
 function enumerateCapped(lists: number[][], cap: number): number[][] {
@@ -65,7 +70,12 @@ export function searchReceiptYears(
   const fullLists = frozen.benefits.map((b) => candidateYears(b, frozen, ruleset));
   const combinationCount = productCount(fullLists);
   const truncated = combinationCount > SEARCH_COMBINATION_CAP;
-  const lists = truncated ? collapseToFirstRange(fullLists) : fullLists;
+  const lists = truncated
+    ? collapseToFirstRange(
+        fullLists,
+        frozen.benefits.map((b) => b.receiptYear),
+      )
+    : fullLists;
   const combos = enumerateCapped(lists, SEARCH_COMBINATION_CAP);
 
   const hits: SearchHit[] = combos.map((years) => {

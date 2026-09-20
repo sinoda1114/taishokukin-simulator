@@ -296,5 +296,8 @@ describe("short tenure and F2 / search", () => {
     expect(result.combinationCount).toBe(16 * 16 * 16);
     expect(result.truncated).toBe(true);
     expect(result.hits.length).toBeLessThanOrEqual(16);
+    expect(result.hits.every((h) => h.receiptYears.b === 2030 && h.receiptYears.c === 2030)).toBe(
+      true,
+    );
   });
 });

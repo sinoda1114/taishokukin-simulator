@@ -11,7 +11,7 @@ function databaseUrl(): string {
   if (process.env.VERCEL) {
     throw new Error("本番では TURSO_DATABASE_URL が必要です");
   }
-  const dir = process.env.VERCEL ? "/tmp" : path.join(process.cwd(), "data");
+  const dir = path.join(process.cwd(), "data");
   mkdirSync(dir, { recursive: true });
   return `file:${path.join(dir, "local.db")}`;
 }
