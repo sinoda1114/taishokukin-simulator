@@ -19,7 +19,7 @@ GitHub: `sinoda1114/taishokukin-simulator`
 | 項目 | 値 |
 |---|---|
 | GitHub | `sinoda1114/taishokukin-simulator` |
-| パッケージ | 未定（実装時に決める。看板の pnpm 前提をそのまま持ち込まない） |
+| パッケージ | npm |
 | 認証 | MVP はオフ（REQUIREMENTS F12）。後付け Clerk |
 | 計算 | エンジンは純関数。ブラウザでもサーバーでも同じ |
 

@@ -1,3 +1,12 @@
 .DS_Store
 node_modules/
 .env*
+!.env.example
+.next/
+out/
+data/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+*.tsbuildinfo
