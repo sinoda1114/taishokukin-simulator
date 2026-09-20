@@ -1,15 +1,17 @@
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import {
   defaultRuleset,
   simulate,
+  type BenefitKind,
   type SimulationInput,
   type SimulationResult,
   type TaxRuleset,
 } from "@/engine";
 import { getDb } from "@/db/client";
 import { simulations, taxRulesets, usageEvents } from "@/db/schema";
-import { parseSimulationInput, parseTaxRuleset } from "@/lib/parse-input";
+import { kindSchema, parseSimulationInput, parseTaxRuleset } from "@/lib/parse-input";
 
 function now() {
   return new Date();
@@ -100,9 +102,21 @@ export async function loadSimulation(token: string): Promise<{
   }
 }
 
+export const usageEventTypeSchema = z.enum(["save", "calculate", "view"]);
+
+export const usagePayloadSchema = z.object({
+  benefitCount: z.number().int().min(0).max(6),
+  kinds: z.array(kindSchema).max(6),
+});
+
+export const usageEventSchema = z.object({
+  eventType: usageEventTypeSchema,
+  payload: usagePayloadSchema.optional(),
+});
+
 export async function logUsage(
-  eventType: string,
-  payload: Record<string, unknown>,
+  eventType: z.infer<typeof usageEventTypeSchema>,
+  payload: { benefitCount: number; kinds: BenefitKind[] },
 ): Promise<void> {
   try {
     const db = await getDb();
