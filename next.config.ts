@@ -8,6 +8,9 @@ if (process.env.VERCEL) {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["@libsql/client", "libsql"],
+  experimental: {
+    optimizePackageImports: ["@mantine/core", "@mantine/hooks"],
+  },
 };
 
 export default nextConfig;
