@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/auth/getCurrentUser";
 import { parseSimulationInput } from "@/lib/parse-input";
 import { logUsage, saveSimulation } from "@/lib/simulations";
 
 export async function POST(request: Request) {
+  await getCurrentUser();
   let raw: unknown;
   try {
     raw = await request.json();

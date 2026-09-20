@@ -1,8 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { defaultRuleset, simulate, type SimulationInput, type SimulationResult } from "@/engine";
+import {
+  defaultRuleset,
+  simulate,
+  type SimulationInput,
+  type SimulationResult,
+  type TaxRuleset,
+} from "@/engine";
 import { getDb } from "@/db/client";
 import { simulations, taxRulesets, usageEvents } from "@/db/schema";
+import { parseSimulationInput } from "@/lib/parse-input";
 
 function now() {
   return new Date();
@@ -29,12 +36,30 @@ export async function seedRulesetIfNeeded(): Promise<void> {
   });
 }
 
+export async function loadRuleset(): Promise<TaxRuleset> {
+  await seedRulesetIfNeeded();
+  const db = await getDb();
+  const existing = await db
+    .select()
+    .from(taxRulesets)
+    .where(eq(taxRulesets.version, defaultRuleset.version))
+    .limit(1);
+  const row = existing[0];
+  if (!row) return defaultRuleset;
+  try {
+    return JSON.parse(row.payloadJson) as TaxRuleset;
+  } catch {
+    return defaultRuleset;
+  }
+}
+
 export async function saveSimulation(input: SimulationInput): Promise<{
   token: string;
   result: SimulationResult;
 }> {
   await seedRulesetIfNeeded();
-  const result = simulate(input, defaultRuleset);
+  const ruleset = await loadRuleset();
+  const result = simulate(input, ruleset);
   const token = id(24);
   const db = await getDb();
   const at = now();
@@ -65,9 +90,14 @@ export async function loadSimulation(token: string): Promise<{
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  const input = JSON.parse(row.inputJson) as SimulationInput;
-  const result = simulate(input, defaultRuleset);
-  return { input, result, rulesetVersion: row.rulesetVersion };
+  try {
+    const input = parseSimulationInput(JSON.parse(row.inputJson));
+    const ruleset = await loadRuleset();
+    const result = simulate(input, ruleset);
+    return { input, result, rulesetVersion: row.rulesetVersion };
+  } catch {
+    return null;
+  }
 }
 
 export async function logUsage(
