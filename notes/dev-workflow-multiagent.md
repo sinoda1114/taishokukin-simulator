@@ -2,11 +2,11 @@
 
 > 目的: 複数エージェント/セッションが**同じ作業コピー・同じ main を同時に書く**ことで起きる
 > 衝突（未コミット変更の巻き込み・main 直コミット競合・本番デプロイの二重化）を物理的に無くす。
-> このファイルが運用の正本。全エージェントはここに従う。
+> このファイルが運用の正本。全エージェントはここに従う。対象リポは **退職金シミュレーター**（`sinoda1114/taishokukin-simulator`）。看板のパスは使わない。
 
 ## 1. 作業空間の分離：1エージェント＝1 worktree＝1ブランチ
 
-- リポジトリの**実体ディレクトリ `~/dev/gmail-kanban` は「main 統合＋デプロイ専用」**。
+- リポジトリの**実体ディレクトリ `~/dev/taishokukin-simulator` は「main 統合＋デプロイ専用」**。
   ここで feature 開発をしない。番人（人間 or デプロイ担当エージェント）だけが触る。
 - 機能開発は **`git worktree` で各自の作業空間**を切り、**専用 feature ブランチ**で行う。
   `.git` は共有されるが**作業ファイルは完全分離**＝未コミット衝突が原理的に起きない。
@@ -14,18 +14,18 @@
 ```bash
 # 必ず origin/main 起点で切る（起点省略禁止。本体 HEAD が古いと退行事故になる）
 git fetch origin
-git worktree add ../gmail-kanban-<topic> -b feat/<topic> origin/main
+git worktree add ../taishokukin-simulator-<topic> -b feat/<topic> origin/main
 # 起点ズレ確認（0 であること）
-git -C ../gmail-kanban-<topic> rev-list --count origin/main..HEAD
+git -C ../taishokukin-simulator-<topic> rev-list --count origin/main..HEAD
 
 # 一覧 / 後片付け
 git worktree list
-git worktree remove ../gmail-kanban-<topic>   # マージ後に撤去
+git worktree remove ../taishokukin-simulator-<topic>   # マージ後に撤去
 ```
 
-- 命名規則: `feat/<topic>` `fix/<topic>` `chore/<topic>`。worktree dir は `../gmail-kanban-<topic>`。
+- 命名規則: `feat/<topic>` `fix/<topic>` `chore/<topic>`。worktree dir は `../taishokukin-simulator-<topic>`。
 - **同じファイルを2つの worktree で同時編集しない**（役割境界を守る）。
-- worktree は本体 repo の `node_modules` を symlink すると検証が速い（`ln -s ../gmail-kanban/node_modules node_modules`）。
+- 依存ディレクトリができたあと、worktree から本体 `~/dev/taishokukin-simulator` へ symlink すると検証が速い。
 
 ## 2. main は「PR マージ専用」（直コミット禁止）
 
@@ -45,7 +45,7 @@ git worktree remove ../gmail-kanban-<topic>   # マージ後に撤去
    - `thermo-nuclear-review-subagent`（バグ・破壊・セキュリティ・devex・フラグ漏れ）
    - `thermo-nuclear-code-quality-review-subagent`（保守性・構造・肥大化）
 3. 親が結果を統合し、**High（と必要な Medium）を直してから** push / 完了宣言
-4. 検証コマンド（`pnpm typecheck` / `lint` / `test` 等）と必須 CI 緑は従来どおり
+4. 検証コマンド（パッケージマネージャが決まったら typecheck / lint / test 等）と必須 CI 緑は従来どおり
 
 機構の置き場所（セッションを超えて効く）:
 
@@ -56,20 +56,20 @@ docs / ルール文言のみの変更はサーモス省略可。
 
 ## 3. デプロイは「git 駆動・単一オーナー」（手動 CLI 禁止）
 
-- **`main にマージ ＝ 本番(Production)自動デプロイ`** に一本化（Vercel の Git 連携）。
+- **`main にマージ ＝ 本番(Production)自動デプロイ`** に一本化（ホスティングの Git 連携。実装時に決める）。
 - **手動デプロイは原則禁止**（本番状態の二重化を防ぐ）。緊急時のみ番人が実施し、必ず記録。
-- **PR ごとに自動でプレビュー URL が発行**される。→ **機能別の動作確認はプレビュー URL で**。本番は main だけ。
-- 環境変数は Vercel ダッシュボードが正本（`.env.local` はローカル dev 用、リポに出さない）。
+- **PR ごとに自動でプレビュー URL が発行**される想定。→ **機能別の動作確認はプレビュー URL で**。本番は main だけ。
+- 環境変数はホスティング側の設定が正本（`.env.local` はローカル dev 用、リポに出さない）。
 - 短時間の連続マージで自動デプロイを取りこぼすことがある。**マージ後は Production の発火を確認**する。
 
 ## 4. 役割境界
 
-- 担当領域ごとにエージェント/役割を分ける（UI / 認証・課金 / データ取得 / 法務・SEO・インフラ / レビュー監督 等）。
+- 担当領域ごとにエージェント/役割を分ける（UI / 計算エンジン / 保存・共有 / インフラ / レビュー監督 等）。
 - 担当外ファイルは触らない。越境が要るときは PR 説明に明記し、レビュー担当が確認する。
 
 ## 5. タスクの正本
 
-- タスクの正本は **GitHub Issue / Project**（`notes/task-management-issue-workflow.md`）。
+- タスクの正本は **GitHub Issue / Project**。
 - セッション内の TaskList は揮発する。状態は GitHub を正とする（記憶・伝聞で語らない）。
 
 ## 6. PR 状態は GitHub が正本
@@ -90,18 +90,12 @@ docs / ルール文言のみの変更はサーモス省略可。
 必須:
 
 1. 指摘を直したら **そのスレッドを Resolve**（返信だけで終わらせない）
-2. 「マージ可」宣言・squash 直前に:
-
-```bash
-pnpm pr:conversations                 # 検査（未解決なら fail）
-pnpm pr:conversations:resolve         # outdated / 対応済み「返信あり」を Resolve
-pnpm pr:conversations:resolve-all     # 対応後のマージ直前に残り全部
-```
+2. 「マージ可」宣言・squash 直前に検査する。スクリプトがあれば `./scripts/pr-conversation-gate.sh`。npm scripts はパッケージマネージャが決まったあとに足す（`pnpm` 前提ではない）。
 
 `resolve-all` は **指摘を直したあと** のマージ直前用。未対応の指摘を黙って閉じる用途ではない。
 
 機構:
 
 - 常時適用ルール: `.cursor/rules/pr-conversation-gate.mdc`
-- スクリプト: `scripts/pr-conversation-gate.sh`
+- スクリプト: `scripts/pr-conversation-gate.sh`（未作成なら、作成するまで GraphQL `resolveReviewThread` 等で Resolve する）
 - スキル: `.cursor/skills/pr-conversation-gate/SKILL.md`

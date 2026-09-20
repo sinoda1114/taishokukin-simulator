@@ -1,6 +1,6 @@
 # pstack（このプロジェクト）
 
-Gmail Kanban の実装作業は Cursor の pstack プラグインを入口にする。`/poteto-mode` が既定。git / PR / デプロイの運用は `notes/dev-workflow-multiagent.md` が正本のまま。pstack の Shipping プレイブックはマージしない。自分の PR は必須 CI が全部成功したら squash マージしてよい（詳細は同ファイル §6）。
+退職金シミュレーターの実装作業は Cursor の pstack プラグインを入口にする。`/poteto-mode` が既定。git / PR / デプロイの運用は `notes/dev-workflow-multiagent.md` が正本のまま。pstack の Shipping プレイブックはマージしない。自分の PR は必須 CI が全部成功したら squash マージしてよい（詳細は同ファイル §6）。
 
 ## モデル割当
 
@@ -26,7 +26,7 @@ pstack のスキルは `~/.cursor/rules/pstack-models.mdc` を読む。リポの
 
 ## 検証
 
-ユーザー操作の証明は `.cursor/skills/verify-gmail-kanban/`。Vitest / Playwright のコマンドと Done 条件は `notes/testing-discipline.md` が正本。マップがアプリからずれたら `/maintain-verification-skill`。
+Vitest / Playwright のコマンドと Done 条件は `notes/testing-discipline.md` が正本。看板の `verify-gmail-kanban` は使わない。このリポ用の検証スキルはアプリ実装後に用意する。
 
 ## 運用との境界
 
