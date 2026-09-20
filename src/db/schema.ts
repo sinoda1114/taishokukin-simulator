@@ -53,3 +53,10 @@ CREATE TABLE IF NOT EXISTS usage_events (
   created_at INTEGER NOT NULL
 );
 `;
+
+export function ddlStatements(sql = CREATE_TABLES_SQL): string[] {
+  return sql
+    .split(";")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+}
