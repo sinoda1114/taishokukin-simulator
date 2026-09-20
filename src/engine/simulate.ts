@@ -14,13 +14,13 @@ import {
   serviceYearsFromMonths,
   totalMonths,
 } from "./months";
+import { explainYear } from "./explain";
 import { defaultRuleset } from "./ruleset";
 import { taxOnRetirementIncome } from "./tax";
 import type {
   AdjustmentCategory,
   BenefitInput,
   BenefitKind,
-  CalculationStep,
   MonthInterval,
   RuleMode,
   SimulationInput,
@@ -166,8 +166,11 @@ function deemedIntervals(
   };
 }
 
-function yen(n: number): string {
-  return `${n.toLocaleString("ja-JP")}円`;
+function hasShortTenure(current: ResolvedBenefit[], unionYears: number): boolean {
+  if (unionYears <= SHORT_TENURE_YEARS) return true;
+  return current.some(
+    (b) => serviceYearsFromMonths(totalMonths(b.intervals)) <= SHORT_TENURE_YEARS,
+  );
 }
 
 function computeYear(args: {
@@ -184,37 +187,7 @@ function computeYear(args: {
   const incomeYen = current.reduce((sum, b) => sum + b.incomeYen, 0);
   const disability = current.some((b) => b.disability);
   const currentCategories = [...new Set(current.map((b) => categoryOf(b.kind)))];
-  const steps: CalculationStep[] = [];
-  const notes: string[] = [];
-
-  steps.push({
-    code: "income",
-    label: "本年分の収入",
-    formula: "同一年の退職手当等を合算",
-    substituted: current.map((b) => `${b.id}:${yen(b.incomeYen)}`).join(" + "),
-    resultYen: incomeYen,
-  });
-  steps.push({
-    code: "service",
-    label: "勤続年数（切上げ）",
-    formula: "月数 = (終了年−開始年)×12 + (終了月−開始月) + 1。余り1以上なら年切上げ",
-    substituted: `${serviceMonths}か月`,
-    resultMonths: serviceMonths,
-    resultYears: serviceYears,
-  });
-
   const statutory = statutoryDeductionYen(serviceYears, ruleset);
-  steps.push({
-    code: "statutory",
-    label: "退職所得控除（30条3項・調整前）",
-    formula:
-      serviceYears <= ruleset.longServiceThresholdYears
-        ? "40万円 × 勤続年数"
-        : "800万円 + 70万円 × (勤続年数 − 20)",
-    substituted: `${serviceYears}年`,
-    resultYen: statutory,
-    resultYears: serviceYears,
-  });
 
   const qualifying: Array<{
     lump: PriorLump;
@@ -241,8 +214,7 @@ function computeYear(args: {
   }
 
   const priorUnion = mergeIntervals(qualifying.flatMap((q) => q.intervals));
-  const overlapIntervals = intersectIntervals(intervals, priorUnion);
-  const overlapMonths = totalMonths(overlapIntervals);
+  const overlapMonths = totalMonths(intersectIntervals(intervals, priorUnion));
   const overlapYears = overlapYearsFromMonths(overlapMonths);
   const overlapDeductionYen = statutoryDeductionYen(overlapYears, ruleset);
   const deductionAfterAdjustmentYen = adjustedDeductionYen({
@@ -251,54 +223,41 @@ function computeYear(args: {
     disability,
     ruleset,
   });
+  const shortTenure = hasShortTenure(current, serviceYears);
 
-  steps.push({
-    code: "overlap_years",
-    label: "重複年数（切捨て）",
-    formula: "本年の勤続月 ∩ 対象となる前の勤続月（みなし後）。月数÷12の商",
-    substituted: `${overlapMonths}か月`,
-    resultMonths: overlapMonths,
-    resultYears: overlapYears,
+  const tax = shortTenure
+    ? null
+    : taxOnRetirementIncome({
+        incomeYen,
+        deductionYen: deductionAfterAdjustmentYen,
+        paymentYear: year,
+        ruleset,
+      });
+
+  const { steps, notes } = explainYear({
+    incomes: current.map((b) => ({ id: b.id, incomeYen: b.incomeYen })),
+    serviceMonths,
+    serviceYears,
+    statutoryDeductionYen: statutory,
+    overlapMonths,
+    overlapYears,
+    overlapDeductionYen,
+    deductionAfterAdjustmentYen,
+    longServiceThresholdYears: ruleset.longServiceThresholdYears,
+    qualifying: qualifying.map((q) => ({
+      year: q.lump.year,
+      category: q.lump.category,
+      n: q.n,
+      deemed: q.deemed,
+      deemedYears: q.deemedYears,
+    })),
+    shortTenure,
+    taxableYen: tax?.taxableYen,
+    nationalTaxYen: tax?.nationalTaxYen,
+    residentTaxYen: tax?.residentTaxYen,
   });
-  steps.push({
-    code: "overlap_deduction",
-    label: "重複期間の控除（80万下限なし）",
-    formula: "重複年数を勤続年数とみなした30条3項。年数差で控除を計算しない",
-    substituted: `${overlapYears}年`,
-    resultYen: overlapDeductionYen,
-  });
-  steps.push({
-    code: "adjusted_deduction",
-    label: "調整後の退職所得控除",
-    formula: "max(30条3項 − 重複控除, 80万円) + 障害100万円",
-    substituted: `${yen(statutory)} − ${yen(overlapDeductionYen)}`,
-    resultYen: deductionAfterAdjustmentYen,
-  });
 
-  for (const q of qualifying) {
-    notes.push(
-      `${q.lump.year}年の${q.lump.category === "dc" ? "DC" : "一般"}を前年以前${q.n}年内として算入` +
-        (q.deemed ? `（みなし勤続${q.deemedYears}年）` : ""),
-    );
-  }
-
-  const shortTenure =
-    serviceYears <= SHORT_TENURE_YEARS ||
-    current.some((b) => serviceYearsFromMonths(totalMonths(b.intervals)) <= SHORT_TENURE_YEARS);
-
-  const base: Omit<
-    YearTaxResult,
-    | "status"
-    | "taxableYen"
-    | "incomeTaxYen"
-    | "reconstructionTaxYen"
-    | "municipalTaxYen"
-    | "prefecturalTaxYen"
-    | "residentTaxYen"
-    | "nationalTaxYen"
-    | "totalTaxYen"
-    | "netYen"
-  > = {
+  return {
     year,
     benefitIds: current.map((b) => b.id),
     kinds: current.map((b) => b.kind),
@@ -311,65 +270,16 @@ function computeYear(args: {
     deductionAfterAdjustmentYen,
     steps,
     notes,
-  };
-
-  if (shortTenure) {
-    notes.push("勤続5年以下のため税額は出しません（特定役員・短期退職手当等は未対応）");
-    return {
-      ...base,
-      status: "tenure_out_of_scope",
-      taxableYen: null,
-      incomeTaxYen: null,
-      reconstructionTaxYen: null,
-      municipalTaxYen: null,
-      prefecturalTaxYen: null,
-      residentTaxYen: null,
-      nationalTaxYen: null,
-      totalTaxYen: null,
-      netYen: null,
-    };
-  }
-
-  const tax = taxOnRetirementIncome({
-    incomeYen,
-    deductionYen: deductionAfterAdjustmentYen,
-    paymentYear: year,
-    ruleset,
-  });
-  steps.push({
-    code: "taxable",
-    label: "課税退職所得金額",
-    formula: "floor((収入 − 控除) × 1/2, 1000円)。残額が0以下なら0",
-    substituted: `(${yen(incomeYen)} − ${yen(deductionAfterAdjustmentYen)}) × 1/2`,
-    resultYen: tax.taxableYen,
-  });
-  steps.push({
-    code: "national",
-    label: "所得税および復興特別所得税",
-    formula: "floor((A×税率 − 控除額) × 102.1%)。途中切捨てなし。2038年以後は復興税0",
-    substituted: `課税所得 ${yen(tax.taxableYen)}`,
-    resultYen: tax.nationalTaxYen,
-  });
-  steps.push({
-    code: "resident",
-    label: "住民税",
-    formula: "市町村民税6%と道府県民税4%を別々に掛け、それぞれ100円未満切捨て",
-    substituted: `課税所得 ${yen(tax.taxableYen)}`,
-    resultYen: tax.residentTaxYen,
-  });
-
-  return {
-    ...base,
-    status: "ok",
-    taxableYen: tax.taxableYen,
-    incomeTaxYen: tax.incomeTaxYen,
-    reconstructionTaxYen: tax.reconstructionTaxYen,
-    municipalTaxYen: tax.municipalTaxYen,
-    prefecturalTaxYen: tax.prefecturalTaxYen,
-    residentTaxYen: tax.residentTaxYen,
-    nationalTaxYen: tax.nationalTaxYen,
-    totalTaxYen: tax.totalTaxYen,
-    netYen: tax.netYen,
+    status: tax ? "ok" : "tenure_out_of_scope",
+    taxableYen: tax?.taxableYen ?? null,
+    incomeTaxYen: tax?.incomeTaxYen ?? null,
+    reconstructionTaxYen: tax?.reconstructionTaxYen ?? null,
+    municipalTaxYen: tax?.municipalTaxYen ?? null,
+    prefecturalTaxYen: tax?.prefecturalTaxYen ?? null,
+    residentTaxYen: tax?.residentTaxYen ?? null,
+    nationalTaxYen: tax?.nationalTaxYen ?? null,
+    totalTaxYen: tax?.totalTaxYen ?? null,
+    netYen: tax?.netYen ?? null,
   };
 }
 

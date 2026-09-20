@@ -1,5 +1,6 @@
+import { dcReceiptYears } from "./explain";
 import { defaultRuleset } from "./ruleset";
-import { ageInCalendarYear, freezeServiceIntervals, simulate, yearOfAge } from "./simulate";
+import { ageInCalendarYear, freezeServiceIntervals, simulate } from "./simulate";
 import type {
   BenefitInput,
   SearchHit,
@@ -15,22 +16,10 @@ function candidateYears(
   input: SimulationInput,
   ruleset: TaxRuleset,
 ): number[] {
-  if (!benefit.optimizeReceiptYear) return [benefit.receiptYear];
-  if (benefit.kind === "dc" && input.birthYearMonth) {
-    const years: number[] = [];
-    for (let age = ruleset.dcReceiptAgeMin; age <= ruleset.dcReceiptAgeMax; age += 1) {
-      years.push(yearOfAge(input.birthYearMonth, age));
-    }
-    return years;
+  if (!benefit.optimizeReceiptYear || benefit.kind !== "dc" || !input.birthYearMonth) {
+    return [benefit.receiptYear];
   }
-  if (benefit.kind === "dc") {
-    const years: number[] = [];
-    for (let delta = -10; delta <= 15; delta += 1) {
-      years.push(benefit.receiptYear + delta);
-    }
-    return [...new Set(years)].sort((a, b) => a - b);
-  }
-  return [benefit.receiptYear];
+  return dcReceiptYears(input.birthYearMonth.year, ruleset);
 }
 
 function cartesian(lists: number[][]): number[][] {
