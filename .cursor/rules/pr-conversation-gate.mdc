@@ -1,0 +1,41 @@
+---
+description: PR の未解決レビュー会話でマージが BLOCKED になるのを防ぐ（常時適用）
+alwaysApply: true
+---
+# PR 会話ゲート（All comments must be resolved）
+
+GitHub のブランチ保護は **「すべての会話を Resolve 済み」** を要求する。未解決スレッドが1つでもあると `Merging is blocked` になる。このリポではそれが頻発するため、次を必須とする。
+
+## 禁止パターン
+
+- 指摘を直したのにスレッドを **Resolve しない**
+- 「対応済み」と **返信だけして Resolve しない**（返信スレッド自体がブロック要因になる）
+- outdated（古いファイル／行）の指摘を放置する
+- CI 緑・サーモス済みなのに会話未解決のまま「マージ可」と宣言する
+
+## 必須手順
+
+1. レビュー指摘（Devin / Bugbot / Copilot / Amazon Q / 人間）を直したら、**そのスレッドを Resolve**する  
+   - GraphQL `resolveReviewThread` または `scripts/pr-conversation-gate.sh --resolve-safe`
+2. 返信が必要なら、返信後に **必ず同じスレッドを Resolve**する（返信＝完了ではない）
+3. 「PR 準備完了」「マージ可」宣言・squash マージの直前に必ず:
+
+```bash
+pnpm pr:conversations                 # 検査（未解決なら fail）
+pnpm pr:conversations:resolve         # outdated / 対応済み「返信あり」を Resolve
+pnpm pr:conversations:resolve-all     # 対応後のマージ直前に残り全部
+```
+
+`resolve-all` は **指摘を直したあと** のマージ直前用。未対応の指摘を黙って閉じる用途ではない。
+
+## 完了の定義に含めること
+
+機能 PR ではサーモス・CI に加え:
+
+- **未解決レビュー会話ゼロ**（`pnpm pr:conversations` が exit 0）
+
+## 関連
+
+- スクリプト: `scripts/pr-conversation-gate.sh`
+- スキル: `.cursor/skills/pr-conversation-gate/SKILL.md`
+- 運用正本: `notes/dev-workflow-multiagent.md` §6.1

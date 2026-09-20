@@ -1,0 +1,107 @@
+# マルチエージェント開発の運用規律（正本）
+
+> 目的: 複数エージェント/セッションが**同じ作業コピー・同じ main を同時に書く**ことで起きる
+> 衝突（未コミット変更の巻き込み・main 直コミット競合・本番デプロイの二重化）を物理的に無くす。
+> このファイルが運用の正本。全エージェントはここに従う。
+
+## 1. 作業空間の分離：1エージェント＝1 worktree＝1ブランチ
+
+- リポジトリの**実体ディレクトリ `~/dev/gmail-kanban` は「main 統合＋デプロイ専用」**。
+  ここで feature 開発をしない。番人（人間 or デプロイ担当エージェント）だけが触る。
+- 機能開発は **`git worktree` で各自の作業空間**を切り、**専用 feature ブランチ**で行う。
+  `.git` は共有されるが**作業ファイルは完全分離**＝未コミット衝突が原理的に起きない。
+
+```bash
+# 必ず origin/main 起点で切る（起点省略禁止。本体 HEAD が古いと退行事故になる）
+git fetch origin
+git worktree add ../gmail-kanban-<topic> -b feat/<topic> origin/main
+# 起点ズレ確認（0 であること）
+git -C ../gmail-kanban-<topic> rev-list --count origin/main..HEAD
+
+# 一覧 / 後片付け
+git worktree list
+git worktree remove ../gmail-kanban-<topic>   # マージ後に撤去
+```
+
+- 命名規則: `feat/<topic>` `fix/<topic>` `chore/<topic>`。worktree dir は `../gmail-kanban-<topic>`。
+- **同じファイルを2つの worktree で同時編集しない**（役割境界を守る）。
+- worktree は本体 repo の `node_modules` を symlink すると検証が速い（`ln -s ../gmail-kanban/node_modules node_modules`）。
+
+## 2. main は「PR マージ専用」（直コミット禁止）
+
+- **誰も main に直接 commit / push しない**。例外なし。
+- 機能は feature ブランチ → **PR → マージ**。
+- マージ前のレビューゲートは **サーモス（Thermos）** を原則とする（下記 §2.1）。
+  - **`/ai-review` は廃止**（Cursor Cloud 等では実行できない／必須にしない）。
+  - **`/security-review` も必須から外す**（任意。サーモスの branch audit がセキュリティ観点を含む）。
+- コンフリクトは feature 側で `git merge origin/main`（or rebase）して解消してから PR を出す。
+
+## 2.1 サーモス・ゲート（実装後フック・必須）
+
+クラウドエージェント／ローカルを問わず、**アプリのソースを変えたら「完了」前にサーモスを走らせる**。
+
+1. `origin/main...HEAD` の diff と変更ファイルを集める
+2. 並列で Thermos の 2 系統を起動する:
+   - `thermo-nuclear-review-subagent`（バグ・破壊・セキュリティ・devex・フラグ漏れ）
+   - `thermo-nuclear-code-quality-review-subagent`（保守性・構造・肥大化）
+3. 親が結果を統合し、**High（と必要な Medium）を直してから** push / 完了宣言
+4. 検証コマンド（`pnpm typecheck` / `lint` / `test` 等）と必須 CI 緑は従来どおり
+
+機構の置き場所（セッションを超えて効く）:
+
+- 常時適用ルール: `.cursor/rules/thermos-gate.mdc`（`alwaysApply: true`）
+- 手順スキル: `.cursor/skills/thermos-gate/SKILL.md`
+
+docs / ルール文言のみの変更はサーモス省略可。
+
+## 3. デプロイは「git 駆動・単一オーナー」（手動 CLI 禁止）
+
+- **`main にマージ ＝ 本番(Production)自動デプロイ`** に一本化（Vercel の Git 連携）。
+- **手動デプロイは原則禁止**（本番状態の二重化を防ぐ）。緊急時のみ番人が実施し、必ず記録。
+- **PR ごとに自動でプレビュー URL が発行**される。→ **機能別の動作確認はプレビュー URL で**。本番は main だけ。
+- 環境変数は Vercel ダッシュボードが正本（`.env.local` はローカル dev 用、リポに出さない）。
+- 短時間の連続マージで自動デプロイを取りこぼすことがある。**マージ後は Production の発火を確認**する。
+
+## 4. 役割境界
+
+- 担当領域ごとにエージェント/役割を分ける（UI / 認証・課金 / データ取得 / 法務・SEO・インフラ / レビュー監督 等）。
+- 担当外ファイルは触らない。越境が要るときは PR 説明に明記し、レビュー担当が確認する。
+
+## 5. タスクの正本
+
+- タスクの正本は **GitHub Issue / Project**（`notes/task-management-issue-workflow.md`）。
+- セッション内の TaskList は揮発する。状態は GitHub を正とする（記憶・伝聞で語らない）。
+
+## 6. PR 状態は GitHub が正本
+
+- マージ依頼・状態言及の前に `gh pr list --state open` を実行し、その出力を正とする。
+- 番人はマージ前に `gh pr view <N> --json state,mergedAt` で確認（MERGED なら何もしない）。
+- 依頼側も「PR #N マージして」の前に `gh pr list` で番号と未マージを確認する。
+- **実装エージェントは、自分が出した PR で必須 CI が全部成功し、その成功が現在の `origin/main` を取り込んだ先端に対するものなら、確認を待たずに squash マージしてよい**（`--admin` は使わない。`--delete-branch` は可）。毎回の「マージして」は不要。
+- `origin/main` が進んでいたら先に取り込み、必須 CI の成功を待ち直す。
+- GitHub の `BLOCKED` が必須 CI 失敗ではなく未解決レビュー会話のときは、直した指摘を Resolve する。必須 CI が落ちているときはログを見て直す。
+- 意図的に残す指摘があるときだけマージしない。
+- マージ後は Production の発火を確認する。
+
+## 6.1 PR 会話ゲート（未解決コメントでマージ不能になるのを防ぐ）
+
+ブランチ保護の **All comments must be resolved** により、未解決のレビュー会話が1つでもあるとマージできない。エージェントが「対応済み」と返信だけして Resolve しないケースが典型原因。
+
+必須:
+
+1. 指摘を直したら **そのスレッドを Resolve**（返信だけで終わらせない）
+2. 「マージ可」宣言・squash 直前に:
+
+```bash
+pnpm pr:conversations                 # 検査（未解決なら fail）
+pnpm pr:conversations:resolve         # outdated / 対応済み「返信あり」を Resolve
+pnpm pr:conversations:resolve-all     # 対応後のマージ直前に残り全部
+```
+
+`resolve-all` は **指摘を直したあと** のマージ直前用。未対応の指摘を黙って閉じる用途ではない。
+
+機構:
+
+- 常時適用ルール: `.cursor/rules/pr-conversation-gate.mdc`
+- スクリプト: `scripts/pr-conversation-gate.sh`
+- スキル: `.cursor/skills/pr-conversation-gate/SKILL.md`
