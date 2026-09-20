@@ -22,11 +22,31 @@ function candidateYears(
   return dcReceiptYears(input.birthYearMonth.year, ruleset);
 }
 
-function cartesian(lists: number[][]): number[][] {
-  return lists.reduce<number[][]>(
-    (acc, list) => acc.flatMap((prefix) => list.map((item) => [...prefix, item])),
-    [[]],
-  );
+function productCount(lists: number[][]): number {
+  return lists.reduce((n, list) => n * Math.max(list.length, 1), 1);
+}
+
+function collapseToFirstRange(lists: number[][]): number[][] {
+  const first = lists.findIndex((list) => list.length > 1);
+  if (first < 0) return lists;
+  return lists.map((list, index) => (index === first ? list : [list[0]]));
+}
+
+function enumerateCapped(lists: number[][], cap: number): number[][] {
+  const out: number[][] = [];
+  const index = lists.map(() => 0);
+  while (out.length < cap) {
+    out.push(lists.map((list, i) => list[index[i]]));
+    let pos = lists.length - 1;
+    while (pos >= 0) {
+      index[pos] += 1;
+      if (index[pos] < lists[pos].length) break;
+      index[pos] = 0;
+      pos -= 1;
+    }
+    if (pos < 0) break;
+  }
+  return out;
 }
 
 function totalTaxOrInf(hit: SearchHit): number {
@@ -42,19 +62,22 @@ export function searchReceiptYears(
   ruleset: TaxRuleset = defaultRuleset,
 ): SearchResult {
   const frozen = freezeServiceIntervals(input);
-  const lists = frozen.benefits.map((b) => candidateYears(b, frozen, ruleset));
-  const combos = cartesian(lists);
-  const truncated = combos.length > SEARCH_COMBINATION_CAP;
-  const used = truncated ? combos.slice(0, SEARCH_COMBINATION_CAP) : combos;
+  const fullLists = frozen.benefits.map((b) => candidateYears(b, frozen, ruleset));
+  const combinationCount = productCount(fullLists);
+  const truncated = combinationCount > SEARCH_COMBINATION_CAP;
+  const lists = truncated ? collapseToFirstRange(fullLists) : fullLists;
+  const combos = enumerateCapped(lists, SEARCH_COMBINATION_CAP);
 
-  const hits: SearchHit[] = used.map((years) => {
+  const hits: SearchHit[] = combos.map((years) => {
     const receiptYears: Record<string, number> = {};
-    const benefits = frozen.benefits.map((benefit, index) => {
-      receiptYears[benefit.id] = years[index];
-      return { ...benefit, receiptYear: years[index], optimizeReceiptYear: false };
+    const benefits = frozen.benefits.map((benefit, i) => {
+      receiptYears[benefit.id] = years[i];
+      return { ...benefit, receiptYear: years[i], optimizeReceiptYear: false };
     });
-    const next: SimulationInput = { ...frozen, benefits };
-    return { receiptYears, result: simulate(next, ruleset) };
+    return {
+      receiptYears,
+      result: simulate({ ...frozen, benefits }, ruleset),
+    };
   });
 
   const feasible = hits.filter((h) => h.result.totalTaxYen !== null);
@@ -68,7 +91,7 @@ export function searchReceiptYears(
     hits: feasible,
     best: feasible[0] ?? null,
     truncated,
-    combinationCount: combos.length,
+    combinationCount,
   };
 }
 

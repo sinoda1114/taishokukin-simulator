@@ -57,7 +57,8 @@ function extendForContributionEnd(
   if (benefit.kind !== "dc" || benefit.contributionEndAge === undefined || !birth) {
     return intervals;
   }
-  const endYear = yearOfAge(birth, benefit.contributionEndAge);
+  const contribYear = yearOfAge(birth, benefit.contributionEndAge);
+  const endYear = Math.min(contribYear, benefit.receiptYear);
   const merged = mergeIntervals(intervals);
   if (merged.length === 0) return merged;
   const last = merged[merged.length - 1];
