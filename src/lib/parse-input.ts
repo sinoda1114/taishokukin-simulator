@@ -11,7 +11,7 @@ const intervalSchema = z.object({
   end: yearMonthSchema,
 });
 
-const kindSchema = z.enum(["company", "dc", "mutual_aid", "other"]);
+export const kindSchema = z.enum(["company", "dc", "mutual_aid", "other"]);
 const ruleModeSchema = z.enum(["auto", "pre_2026", "post_2026"]);
 
 const benefitSchema = z

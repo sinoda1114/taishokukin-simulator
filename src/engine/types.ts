@@ -136,4 +136,5 @@ export type SearchResult = {
   best: SearchHit | null;
   truncated: boolean;
   combinationCount: number;
+  variedBenefitIds: string[];
 };

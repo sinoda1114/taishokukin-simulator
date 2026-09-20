@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildThreePatterns } from "./patterns";
 import { searchReceiptYears } from "./search";
-import { simulate } from "./simulate";
+import { resolveBenefitIntervals, simulate } from "./simulate";
 import type { BenefitInput, SimulationInput } from "./types";
 
 const birth = { year: 1965, month: 4 };
@@ -201,6 +201,21 @@ describe("deemed service and N-benefit cases", () => {
 });
 
 describe("short tenure and F2 / search", () => {
+  it("does not extend DC service past the receipt year", () => {
+    const intervals = resolveBenefitIntervals(
+      {
+        id: "dc",
+        kind: "dc",
+        incomeYen: 10_000_000,
+        serviceYears: 20,
+        receiptYear: 2030,
+        contributionEndAge: 70,
+      },
+      birth,
+    );
+    expect(intervals[0]?.end).toEqual({ year: 2030, month: 12 });
+  });
+
   it("does not emit tax for tenure of 5 years or less", () => {
     const result = simulate(
       input([
@@ -266,5 +281,25 @@ describe("short tenure and F2 / search", () => {
     expect(at2035?.result.totalTaxYen).toBe(1_368_544);
     expect(at2040?.result.totalTaxYen).toBe(1_358_202);
     expect(result.best?.receiptYears.dc).toBe(2038);
+  });
+
+  it("does not allocate a full cartesian when several DCs are optimized", () => {
+    const dc = (id: string): BenefitInput => ({
+      id,
+      kind: "dc",
+      incomeYen: 5_000_000,
+      serviceYears: 20,
+      receiptYear: 2030,
+      optimizeReceiptYear: true,
+    });
+    const result = searchReceiptYears(input([dc("a"), dc("b"), dc("c")]));
+    expect(result.combinationCount).toBe(16 * 16 * 16);
+    expect(result.truncated).toBe(true);
+    expect(result.variedBenefitIds).toEqual(["a"]);
+    expect(result.hits.length).toBeLessThanOrEqual(16);
+    expect(new Set(result.hits.map((h) => h.receiptYears.a)).size).toBeGreaterThan(1);
+    expect(result.hits.every((h) => h.receiptYears.b === 2030 && h.receiptYears.c === 2030)).toBe(
+      true,
+    );
   });
 });
