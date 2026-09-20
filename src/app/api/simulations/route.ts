@@ -15,14 +15,10 @@ export async function POST(request: Request) {
   try {
     const input = parseSimulationInput(raw);
     const saved = await saveSimulation(input);
-    try {
-      await logUsage("save", {
-        benefitCount: input.benefits.length,
-        kinds: input.benefits.map((b) => b.kind),
-      });
-    } catch {
-      // 保存自体は成功している
-    }
+    await logUsage("save", {
+      benefitCount: input.benefits.length,
+      kinds: input.benefits.map((b) => b.kind),
+    });
     return NextResponse.json({ token: saved.token, result: saved.result });
   } catch (error) {
     if (error instanceof ZodError) {

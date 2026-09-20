@@ -1,16 +1,5 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { logUsage } from "@/lib/simulations";
-
-const eventSchema = z.object({
-  eventType: z.enum(["save", "calculate", "view"]),
-  payload: z
-    .object({
-      benefitCount: z.number().int().min(0).max(6).optional(),
-      kinds: z.array(z.enum(["company", "dc", "mutual_aid", "other"])).max(6).optional(),
-    })
-    .optional(),
-});
+import { logUsage, usageEventSchema } from "@/lib/simulations";
 
 export async function POST(request: Request) {
   let raw: unknown;
@@ -19,7 +8,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "JSON が読めません" }, { status: 400 });
   }
-  const parsed = eventSchema.safeParse(raw);
+  const parsed = usageEventSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ error: "eventType が不正です" }, { status: 400 });
   }

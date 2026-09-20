@@ -23,35 +23,55 @@ function candidateYears(
 }
 
 function productCount(lists: number[][]): number {
-  return lists.reduce((n, list) => n * Math.max(list.length, 1), 1);
+  let n = 1;
+  for (const list of lists) {
+    if (list.length === 0) {
+      throw new Error("受取年の候補が空です");
+    }
+    n *= list.length;
+  }
+  return n;
 }
 
-function collapseToFirstRange(
-  lists: number[][],
-  receiptYears: number[],
-): number[][] {
-  const first = lists.findIndex((list) => list.length > 1);
-  if (first < 0) return lists;
-  return lists.map((list, index) =>
-    index === first ? list : [receiptYears[index]],
+function cartesian(lists: number[][]): number[][] {
+  return lists.reduce<number[][]>(
+    (acc, list) => acc.flatMap((prefix) => list.map((item) => [...prefix, item])),
+    [[]],
   );
 }
 
-function enumerateCapped(lists: number[][], cap: number): number[][] {
-  const out: number[][] = [];
-  const index = lists.map(() => 0);
-  while (out.length < cap) {
-    out.push(lists.map((list, i) => list[index[i]]));
-    let pos = lists.length - 1;
-    while (pos >= 0) {
-      index[pos] += 1;
-      if (index[pos] < lists[pos].length) break;
-      index[pos] = 0;
-      pos -= 1;
-    }
-    if (pos < 0) break;
+function planReceiptYears(
+  benefits: BenefitInput[],
+  fullLists: number[][],
+): {
+  lists: number[][];
+  variedBenefitIds: string[];
+  combinationCount: number;
+  truncated: boolean;
+} {
+  const combinationCount = productCount(fullLists);
+  const variable = benefits
+    .map((benefit, index) => ({ id: benefit.id, years: fullLists[index] }))
+    .filter((entry) => entry.years.length > 1);
+  if (combinationCount <= SEARCH_COMBINATION_CAP) {
+    return {
+      lists: fullLists,
+      variedBenefitIds: variable.map((entry) => entry.id),
+      combinationCount,
+      truncated: false,
+    };
   }
-  return out;
+  const first = variable[0];
+  return {
+    lists: first
+      ? benefits.map((benefit, index) =>
+          benefit.id === first.id ? fullLists[index] : [benefit.receiptYear],
+        )
+      : fullLists,
+    variedBenefitIds: first ? [first.id] : [],
+    combinationCount,
+    truncated: true,
+  };
 }
 
 function totalTaxOrInf(hit: SearchHit): number {
@@ -68,17 +88,9 @@ export function searchReceiptYears(
 ): SearchResult {
   const frozen = freezeServiceIntervals(input);
   const fullLists = frozen.benefits.map((b) => candidateYears(b, frozen, ruleset));
-  const combinationCount = productCount(fullLists);
-  const truncated = combinationCount > SEARCH_COMBINATION_CAP;
-  const lists = truncated
-    ? collapseToFirstRange(
-        fullLists,
-        frozen.benefits.map((b) => b.receiptYear),
-      )
-    : fullLists;
-  const combos = enumerateCapped(lists, SEARCH_COMBINATION_CAP);
+  const plan = planReceiptYears(frozen.benefits, fullLists);
 
-  const hits: SearchHit[] = combos.map((years) => {
+  const hits: SearchHit[] = cartesian(plan.lists).map((years) => {
     const receiptYears: Record<string, number> = {};
     const benefits = frozen.benefits.map((benefit, i) => {
       receiptYears[benefit.id] = years[i];
@@ -100,8 +112,9 @@ export function searchReceiptYears(
   return {
     hits: feasible,
     best: feasible[0] ?? null,
-    truncated,
-    combinationCount,
+    truncated: plan.truncated,
+    combinationCount: plan.combinationCount,
+    variedBenefitIds: plan.variedBenefitIds,
   };
 }
 

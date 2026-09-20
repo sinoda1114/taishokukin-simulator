@@ -137,7 +137,11 @@ export function ResultPanel({
           <h2>受取年の探索</h2>
           {search.truncated ? (
             <p className="warn">
-              組合せが {search.combinationCount} あるため、最初の可変手当だけを探索しました。税額最小は全探索ではありません。
+              組合せが {search.combinationCount} あるため、
+              {search.variedBenefitIds.length > 0
+                ? `${search.variedBenefitIds.join("、")} だけを動かし、他は入力の受取年に固定しました。`
+                : "探索範囲を絞りました。"}
+              税額最小は全探索ではありません。
             </p>
           ) : (
             <p className="muted">
@@ -146,7 +150,7 @@ export function ResultPanel({
           )}
           {search.best ? (
             <p className="ok">
-              {search.truncated ? "打ち切り後の最小" : "税額最小の試算"}:{" "}
+              {search.truncated ? "固定後の最小" : "税額最小の試算"}:{" "}
               {Object.entries(search.best.receiptYears)
                 .map(([id, year]) => `${id}=${year}年`)
                 .join("、")}{" "}

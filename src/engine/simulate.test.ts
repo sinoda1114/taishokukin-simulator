@@ -295,7 +295,9 @@ describe("short tenure and F2 / search", () => {
     const result = searchReceiptYears(input([dc("a"), dc("b"), dc("c")]));
     expect(result.combinationCount).toBe(16 * 16 * 16);
     expect(result.truncated).toBe(true);
+    expect(result.variedBenefitIds).toEqual(["a"]);
     expect(result.hits.length).toBeLessThanOrEqual(16);
+    expect(new Set(result.hits.map((h) => h.receiptYears.a)).size).toBeGreaterThan(1);
     expect(result.hits.every((h) => h.receiptYears.b === 2030 && h.receiptYears.c === 2030)).toBe(
       true,
     );
