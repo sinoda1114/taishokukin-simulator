@@ -24,4 +24,4 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-ローカルの保存先は `data/local.db`（libSQL）。本番は `TURSO_DATABASE_URL` と `TURSO_AUTH_TOKEN` を使います。認証は `AUTH_PROVIDER=none` のままです。
+ローカルの保存先は `data/local.db`（libSQL）。本番（Vercel）はリモートの `TURSO_DATABASE_URL`（`libsql://...`）と `TURSO_AUTH_TOKEN` が必須です。スキーマ適用は起動時と `npm run db:migrate` です。認証は `AUTH_PROVIDER=none` のままです。
