@@ -11,4 +11,8 @@ describe("toInt", () => {
     expect(toInt("", 1965)).toBe(1965);
     expect(toInt("abc", 1)).toBe(1);
   });
+
+  it("strips grouping commas so pasted yen stays an integer", () => {
+    expect(toInt("20,000,000")).toBe(20_000_000);
+  });
 });

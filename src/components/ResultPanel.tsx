@@ -19,11 +19,34 @@ import { KIND_LABELS, formatYen } from "@/lib/parse-input";
 function receiptCaption(receiptYears: Record<string, number>, benefits: BenefitInput[]): string {
   return Object.entries(receiptYears)
     .map(([id, year]) => {
-      const benefit = benefits.find((item) => item.id === id);
+      const index = benefits.findIndex((item) => item.id === id);
+      const benefit = index >= 0 ? benefits[index] : undefined;
       const name = benefit ? KIND_LABELS[benefit.kind] : id;
-      return `${name} ${year}年`;
+      const clash =
+        benefit !== undefined && benefits.filter((item) => item.kind === benefit.kind).length > 1;
+      return `${name}${clash ? ` ${index + 1}` : ""} ${year}年`;
     })
     .join("、");
+}
+
+function patternCards(patterns: PatternComparison[]) {
+  const baselineTax = patterns.find((p) => p.kind === "simultaneous" && !p.omittedReason)?.result
+    ?.totalTaxYen;
+  const taxes = patterns.flatMap((p) => {
+    const tax = p.omittedReason ? null : (p.result?.totalTaxYen ?? null);
+    return tax === null ? [] : [tax];
+  });
+  const bestTax = taxes.length ? Math.min(...taxes) : null;
+  return patterns.map((pattern) => {
+    const tax = pattern.omittedReason ? null : (pattern.result?.totalTaxYen ?? null);
+    const delta = tax !== null && baselineTax != null ? tax - baselineTax : null;
+    return {
+      pattern,
+      tax,
+      delta,
+      isBest: bestTax !== null && tax === bestTax,
+    };
+  });
 }
 
 export function ResultPanel({
@@ -37,11 +60,7 @@ export function ResultPanel({
   search: SearchResult | null;
   benefits: BenefitInput[];
 }) {
-  const baseline = patterns?.find((p) => p.kind === "simultaneous" && !p.omittedReason);
-  const comparable = (patterns ?? []).filter((p) => !p.omittedReason && p.result?.totalTaxYen != null);
-  const bestTax = comparable.length
-    ? Math.min(...comparable.map((p) => p.result!.totalTaxYen as number))
-    : null;
+  const cards = patterns ? patternCards(patterns) : null;
 
   return (
     <Stack gap="lg" component="section">
@@ -81,7 +100,7 @@ export function ResultPanel({
         ))}
       </div>
 
-      {patterns ? (
+      {cards ? (
         <div>
           <Title order={2} fz="lg">
             同時 / 退職金先 / iDeCo先
@@ -90,18 +109,7 @@ export function ResultPanel({
             会社退職金1本と DC1本のときだけ、この3行を出します。同時との差額は会社の受取年での同時受取が基準です。
           </Text>
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
-            {patterns.map((pattern) => {
-              const tax = pattern.result?.totalTaxYen;
-              const delta =
-                baseline &&
-                tax !== null &&
-                tax !== undefined &&
-                baseline.result?.totalTaxYen !== null &&
-                baseline.result?.totalTaxYen !== undefined
-                  ? tax - baseline.result.totalTaxYen
-                  : null;
-              const isBest = bestTax !== null && tax === bestTax && !pattern.omittedReason;
-              return (
+            {cards.map(({ pattern, tax, delta, isBest }) => (
                 <Paper
                   key={pattern.kind}
                   p="md"
@@ -118,7 +126,7 @@ export function ResultPanel({
                     ) : null}
                   </Group>
                   <Text fw={700} fz={20} mt="xs">
-                    {pattern.omittedReason ? "—" : formatYen(tax ?? null)}
+                    {pattern.omittedReason ? "—" : formatYen(tax)}
                   </Text>
                   <Text size="sm" c="dimmed" mt={4}>
                     同時との差{" "}
@@ -130,8 +138,7 @@ export function ResultPanel({
                     </Text>
                   ) : null}
                 </Paper>
-              );
-            })}
+            ))}
           </SimpleGrid>
         </div>
       ) : null}

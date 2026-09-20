@@ -8,7 +8,6 @@ import {
   CopyButton,
   Grid,
   Group,
-  NumberInput,
   Paper,
   Select,
   Stack,
@@ -24,8 +23,8 @@ import {
   type SimulationInput,
 } from "@/engine";
 import { RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
-import { toInt } from "@/lib/ui-numbers";
 import { BenefitEditor } from "./BenefitEditor";
+import { IntInput } from "./IntInput";
 import { ResultPanel } from "./ResultPanel";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -57,6 +56,12 @@ const RULE_OPTIONS = (Object.keys(RULE_MODE_LABELS) as RuleMode[]).map((mode) =>
   value: mode,
   label: RULE_MODE_LABELS[mode],
 }));
+
+function absoluteShareUrl(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (typeof window === "undefined") return url;
+  return `${window.location.origin}${url.startsWith("/") ? url : `/${url}`}`;
+}
 
 type Props = {
   initialInput?: SimulationInput;
@@ -153,38 +158,34 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               入力
             </Title>
             <Group grow preventGrowOverflow={false} wrap="wrap">
-              <NumberInput
+              <IntInput
                 label="生年"
-                hideControls
-                allowDecimal={false}
-                allowNegative={false}
                 min={1900}
                 max={2200}
                 value={input.birthYearMonth?.year ?? ""}
-                onChange={(value) =>
+                emptyValue={input.birthYearMonth?.year ?? 1965}
+                onValue={(year) =>
                   setInput((prev) => ({
                     ...prev,
                     birthYearMonth: {
-                      year: toInt(value, prev.birthYearMonth?.year ?? 1965),
+                      year,
                       month: prev.birthYearMonth?.month ?? 1,
                     },
                   }))
                 }
               />
-              <NumberInput
+              <IntInput
                 label="生月"
-                hideControls
-                allowDecimal={false}
-                allowNegative={false}
                 min={1}
                 max={12}
                 value={input.birthYearMonth?.month ?? ""}
-                onChange={(value) =>
+                emptyValue={input.birthYearMonth?.month ?? 1}
+                onValue={(month) =>
                   setInput((prev) => ({
                     ...prev,
                     birthYearMonth: {
                       year: prev.birthYearMonth?.year ?? 1965,
-                      month: toInt(value, prev.birthYearMonth?.month ?? 1),
+                      month,
                     },
                   }))
                 }
@@ -233,7 +234,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 <Anchor href={saveUrl} underline="always">
                   {saveUrl}
                 </Anchor>
-                <CopyButton value={saveUrl}>
+                <CopyButton value={absoluteShareUrl(saveUrl)}>
                   {({ copied, copy }) => (
                     <Button size="compact-xs" variant="light" mt="xs" onClick={copy}>
                       {copied ? "コピーした" : "コピー"}

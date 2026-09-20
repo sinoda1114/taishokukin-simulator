@@ -4,7 +4,6 @@ import {
   Button,
   Checkbox,
   Group,
-  NumberInput,
   Select,
   SimpleGrid,
   Stack,
@@ -12,8 +11,8 @@ import {
   Title,
 } from "@mantine/core";
 import type { BenefitInput, BenefitKind } from "@/engine";
+import { IntInput } from "./IntInput";
 import { KIND_LABELS } from "@/lib/parse-input";
-import { toInt } from "@/lib/ui-numbers";
 
 const KIND_OPTIONS = (Object.keys(KIND_LABELS) as BenefitKind[]).map((kind) => ({
   value: kind,
@@ -59,51 +58,38 @@ export function BenefitEditor({
           }}
           allowDeselect={false}
         />
-        <NumberInput
+        <IntInput
           label="見込み受取額（円）"
           thousandSeparator=","
-          hideControls
-          allowDecimal={false}
-          allowNegative={false}
           min={0}
           value={benefit.incomeYen}
-          onChange={(value) => onChange({ incomeYen: toInt(value, 0) })}
+          onValue={(incomeYen) => onChange({ incomeYen })}
         />
-        <NumberInput
+        <IntInput
           label="受取年"
-          hideControls
-          allowDecimal={false}
-          allowNegative={false}
           min={1980}
           max={2200}
           value={benefit.receiptYear}
-          onChange={(value) => onChange({ receiptYear: toInt(value, benefit.receiptYear) })}
+          emptyValue={benefit.receiptYear}
+          onValue={(receiptYear) => onChange({ receiptYear })}
         />
-        <NumberInput
+        <IntInput
           label="勤続年数（簡易）"
-          hideControls
-          allowDecimal={false}
-          allowNegative={false}
           min={1}
           max={80}
           disabled={useIntervals}
           value={benefit.serviceYears ?? ""}
-          onChange={(value) => onChange({ serviceYears: Math.max(1, toInt(value, 1)) })}
+          emptyValue={1}
+          onValue={(serviceYears) => onChange({ serviceYears: Math.max(1, serviceYears) })}
         />
         {benefit.kind === "dc" ? (
-          <NumberInput
+          <IntInput
             label="拠出終了年齢（任意）"
-            hideControls
-            allowDecimal={false}
-            allowNegative={false}
             min={50}
             max={75}
             value={benefit.contributionEndAge ?? ""}
-            onChange={(value) =>
-              onChange({
-                contributionEndAge: value === "" ? undefined : toInt(value),
-              })
-            }
+            onEmpty={() => onChange({ contributionEndAge: undefined })}
+            onValue={(contributionEndAge) => onChange({ contributionEndAge })}
           />
         ) : null}
       </SimpleGrid>

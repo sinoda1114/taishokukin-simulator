@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export function SiteFrame({ children }: { children: React.ReactNode }) {
   return (
-    <Box mih="100vh">
+    <Box mih="100vh" bg="#f3f0ea">
       <Container size={1120} px={{ base: 12, sm: 20 }} py={{ base: 16, sm: 28 }} pb={56}>
         <Box component="header" mb={{ base: "md", sm: "lg" }}>
           <Box
