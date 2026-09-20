@@ -1,0 +1,11 @@
+---
+description: pstack cost cap — no fast/xhigh/max unless the user asks this turn
+alwaysApply: true
+---
+# pstack cost cap
+
+Do not pass a Task `model` slug that contains `fast`, `xhigh`, or `max` unless the user explicitly asked for that tier in this conversation.
+
+The default ceiling is `high`. Role defaults live in `.cursor/rules/pstack-models.mdc` (and `~/.cursor/rules/pstack-models.mdc` after `./scripts/sync-pstack-models.sh`).
+
+If the user asks for `fast`, `xhigh`, or `max`, use that tier only for the named task, then return to the high defaults. Do not leave a hotter slug in the config unless they asked to change the defaults.

@@ -1,0 +1,44 @@
+---
+description: 実装後のサーモス必須ゲート（/ai-review 廃止の代替フック）
+alwaysApply: true
+---
+# サーモス・ゲート（プロジェクト全体・常時適用）
+
+このルールは **セッションを問わず** 全エージェントに効く。Cursor Cloud / ローカルの区別なく適用する。
+
+## `/ai-review` は使わない
+
+- `/ai-review`（および同等の AI レビュー slash）は **この環境では実行できない／必須にしない**。
+- 旧「2 段ゲート（`/ai-review` → commit → `/security-review`）」のうち **`/ai-review` 段は廃止**。
+- `/security-review` も必須ゲートから外す（サーモスの branch audit がセキュリティ観点を含む）。任意で足してよいが、完了条件にはしない。
+
+## フック：実装したらサーモス
+
+次のどれかを満たしたら、**「完了」「PR 準備完了」「マージ可」と宣言する前に** 必ずサーモスを走らせる:
+
+1. アプリ／ライブラリのソースを追加・変更した（`src/`、設定、スクリプト、スキーマ等）
+2. 挙動や API・UI に影響する変更をコミット／プッシュする直前
+3. 機能 PR の最終更新前
+
+ドキュメントのみ・ルール文言のみ・コメントのみの変更はサーモス省略可。ただし「ルール自体の導入 PR」でも、実行手順が正しいかは自己確認する。
+
+## やり方（機構）
+
+1. `origin/main...HEAD`（または PR base）の diff と変更ファイル本文を集める
+2. 同じターンで並列に Task を起動する:
+   - `subagent_type: "thermo-nuclear-review-subagent"`（バグ・破壊・セキュリティ・devex・フラグ漏れ）
+   - `subagent_type: "thermo-nuclear-code-quality-review-subagent"`（保守性・構造・肥大化）
+3. 親が結果を統合し、重複を潰して優先度付きで出す
+4. **High（および合意した Medium）は直してから** push / 「完了」宣言
+5. 直したあと実質的な再変更があれば、もう一度サーモス（または差分再監査）
+
+詳細手順の正本: `.cursor/skills/thermos-gate/SKILL.md` および Thermos プラグインの `thermos` skill。運用文章の正本: `notes/dev-workflow-multiagent.md`。
+
+## 完了の定義に含めること
+
+機能変更 PR では次をセットで満たす:
+
+- `pnpm typecheck` / `pnpm lint` / `pnpm test`（該当時 `test:e2e` / `build`）
+- **サーモス実施済み**（結果の要約を PR 本文か最終返答に残す）
+- 必須 CI 緑
+- **未解決レビュー会話ゼロ**（`pnpm pr:conversations`。詳細は `.cursor/rules/pr-conversation-gate.mdc`）
