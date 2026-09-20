@@ -1,7 +1,7 @@
 ---
 name: thermos-gate
 description: >-
-  Gmail Kanban の実装後必須ゲート。クラウド／ローカル問わず、コード変更を「完了」にする前に
+  退職金シミュレーターの実装後必須ゲート。クラウド／ローカル問わず、コード変更を「完了」にする前に
   Thermos（thermo-nuclear-review + thermo-nuclear-code-quality-review）を並列実行する。
   Use when finishing a feature, before declaring PR ready, after substantive code edits,
   or when the user mentions サーモス / thermos gate / 実装後レビュー.

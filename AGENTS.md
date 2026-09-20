@@ -12,7 +12,7 @@ GitHub: `sinoda1114/taishokukin-simulator`
 - **PR 会話ゲート**: マージ前に未解決レビュー会話ゼロ。`.cursor/rules/pr-conversation-gate.mdc`。
 - テスト規律: `notes/testing-discipline.md`
 - pstack の説明: `notes/pstack.md`
-- 開発フロー（worktree / PR / サーモス）: `notes/dev-workflow-multiagent.md`（看板固有の値は無視し、このリポの表を正とする）
+- 開発フロー（worktree / PR / サーモス）: `notes/dev-workflow-multiagent.md`（看板固有の値とフロー文書の看板パスは使わない。このリポの表を正とする）
 
 ## このリポ固有の値
 
