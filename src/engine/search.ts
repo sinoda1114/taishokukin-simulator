@@ -29,11 +29,56 @@ function candidateYears(
   );
 }
 
+function productCount(lists: number[][]): number {
+  let n = 1;
+  for (const list of lists) {
+    if (list.length === 0) return 0;
+    n *= list.length;
+  }
+  return n;
+}
+
 function cartesian(lists: number[][]): number[][] {
+  if (lists.some((list) => list.length === 0)) return [];
   return lists.reduce<number[][]>(
     (acc, list) => acc.flatMap((prefix) => list.map((item) => [...prefix, item])),
     [[]],
   );
+}
+
+function planReceiptYears(
+  benefits: BenefitInput[],
+  fullLists: number[][],
+): {
+  lists: number[][];
+  variedBenefitIds: string[];
+  combinationCount: number;
+  truncated: boolean;
+} {
+  const combinationCount = productCount(fullLists);
+  const variable = benefits
+    .map((benefit, index) => ({ id: benefit.id, years: fullLists[index] ?? [] }))
+    .filter((entry) => entry.years.length > 1);
+  if (combinationCount <= SEARCH_COMBINATION_CAP) {
+    return {
+      lists: fullLists,
+      variedBenefitIds: variable.map((entry) => entry.id),
+      combinationCount,
+      truncated: false,
+    };
+  }
+  const first = variable[0];
+  return {
+    lists: first
+      ? benefits.map((benefit, index) => {
+          if (benefit.id === first.id) return fullLists[index] ?? [benefit.receiptYear];
+          return [benefit.receiptYear];
+        })
+      : fullLists,
+    variedBenefitIds: first ? [first.id] : [],
+    combinationCount,
+    truncated: true,
+  };
 }
 
 function totalTaxOrInf(hit: SearchHit): number {
@@ -48,20 +93,17 @@ export function searchReceiptYears(
   input: SimulationInput,
   ruleset: TaxRuleset = defaultRuleset,
 ): SearchResult {
-  const lists = input.benefits.map((benefit) => candidateYears(benefit, input, ruleset));
-  const combos = cartesian(lists);
-  const truncated = combos.length > SEARCH_COMBINATION_CAP;
-  const used = truncated ? combos.slice(0, SEARCH_COMBINATION_CAP) : combos;
+  const fullLists = input.benefits.map((benefit) => candidateYears(benefit, input, ruleset));
+  const plan = planReceiptYears(input.benefits, fullLists);
 
-  const hits: SearchHit[] = used.map((years) => {
+  const hits: SearchHit[] = cartesian(plan.lists).map((years) => {
     const receiptYears: Record<string, number> = {};
     const benefits = input.benefits.map((benefit, index) => {
       const year = years[index] ?? benefit.receiptYear;
       receiptYears[benefit.id] = year;
       return benefitAtReceiptYear(benefit, year, input.birthYearMonth);
     });
-    const next: SimulationInput = { ...input, benefits };
-    return { receiptYears, result: simulate(next, ruleset) };
+    return { receiptYears, result: simulate({ ...input, benefits }, ruleset) };
   });
 
   const feasible = hits.filter((hit) => hit.result.totalTaxYen !== null);
@@ -74,8 +116,9 @@ export function searchReceiptYears(
   return {
     hits: feasible,
     best: feasible[0] ?? null,
-    truncated,
-    combinationCount: combos.length,
+    truncated: plan.truncated,
+    combinationCount: plan.combinationCount,
+    variedBenefitIds: plan.variedBenefitIds,
   };
 }
 
