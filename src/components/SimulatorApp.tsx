@@ -145,7 +145,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
   }
 
   return (
-    <Grid gap={{ base: "md", md: "lg" }} component="main" align="start">
+    <Grid gutter={{ base: "md", md: "lg" }} component="main" align="start">
       <Grid.Col span={{ base: 12, md: 5 }}>
         <Paper p={{ base: "md", sm: "lg" }} component="section">
           <Stack gap="md">

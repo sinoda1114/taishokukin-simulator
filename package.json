@@ -15,12 +15,12 @@
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
-    "@mantine/core": "^9.6.1",
-    "@mantine/hooks": "^9.6.1",
+    "@mantine/core": "^8.3.18",
+    "@mantine/hooks": "^8.3.18",
     "drizzle-orm": "^0.44.5",
     "next": "^15.5.4",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "server-only": "^0.0.1",
     "zod": "^4.1.11"
   },
