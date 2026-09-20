@@ -108,15 +108,15 @@ export function ResultPanel({
               </thead>
               <tbody>
                 {patterns.map((pattern) => {
-                  const tax = pattern.result.totalTaxYen;
+                  const tax = pattern.result?.totalTaxYen;
                   const delta =
-                    baseline && tax !== null && baseline.result.totalTaxYen !== null
+                    baseline && tax !== null && tax !== undefined && baseline.result?.totalTaxYen !== null && baseline.result?.totalTaxYen !== undefined
                       ? tax - baseline.result.totalTaxYen
                       : null;
                   return (
                     <tr key={pattern.kind}>
                       <td>{pattern.label}</td>
-                      <td>{pattern.omittedReason ? "—" : formatYen(tax)}</td>
+                      <td>{pattern.omittedReason ? "—" : formatYen(tax ?? null)}</td>
                       <td>
                         {delta === null
                           ? "—"

@@ -5,6 +5,7 @@ import {
   statutoryDeductionYen,
 } from "./deduction";
 import {
+  assertValidInterval,
   clipFromStart,
   intersectIntervals,
   mergeIntervals,
@@ -61,7 +62,10 @@ function extendForContributionEnd(
   if (merged.length === 0) return merged;
   const last = merged[merged.length - 1];
   if (last.end.year < endYear || (last.end.year === endYear && last.end.month < 12)) {
-    last.end = { year: endYear, month: 12 };
+    merged[merged.length - 1] = {
+      start: last.start,
+      end: { year: endYear, month: 12 },
+    };
   }
   return mergeIntervals(merged);
 }
@@ -77,6 +81,9 @@ export function resolveBenefitIntervals(
     intervals = [reconstructSimpleInterval(benefit.serviceYears, benefit.receiptYear)];
   } else {
     throw new Error(`手当 ${benefit.id} に勤続期間がありません`);
+  }
+  for (const interval of intervals) {
+    assertValidInterval(interval);
   }
   return extendForContributionEnd(intervals, benefit, birth);
 }

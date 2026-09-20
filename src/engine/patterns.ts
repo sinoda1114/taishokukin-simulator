@@ -84,7 +84,6 @@ export function buildThreePatterns(
         kind: row.kind,
         label: row.label,
         input: nextInput,
-        result: simulate(nextInput, ruleset),
         omittedReason: omitted,
       };
     }

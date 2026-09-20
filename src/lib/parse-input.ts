@@ -43,6 +43,43 @@ export function parseSimulationInput(raw: unknown): SimulationInput {
   return simulationInputSchema.parse(raw);
 }
 
+export const taxRulesetSchema = z.object({
+  schemaVersion: z.literal(1),
+  version: z.string().min(1),
+  amendmentEffectiveYear: z.number().int(),
+  reconstructionSurtaxUntilYear: z.number().int(),
+  reconstructionSurtaxRateBp: z.number().int().min(0),
+  incomeTaxBrackets: z
+    .array(
+      z.object({
+        upToInclusive: z.number().int().nullable(),
+        rateBp: z.number().int().min(0),
+        deductionYen: z.number().int().min(0),
+      }),
+    )
+    .min(1),
+  municipalRateBp: z.number().int().min(0),
+  prefecturalRateBp: z.number().int().min(0),
+  basicDeductionPerYearYen: z.number().int().min(0),
+  longServiceThresholdYears: z.number().int().min(1),
+  longServiceBaseYen: z.number().int().min(0),
+  longServicePerYearYen: z.number().int().min(0),
+  minimumDeductionYen: z.number().int().min(0),
+  disabilityAdditionYen: z.number().int().min(0),
+  windows: z.object({
+    generalToGeneral: z.number().int().min(0),
+    generalToDcPreAmendment: z.number().int().min(0),
+    generalToDcPostAmendment: z.number().int().min(0),
+    dcToAny: z.number().int().min(0),
+  }),
+  dcReceiptAgeMin: z.number().int().min(0),
+  dcReceiptAgeMax: z.number().int().min(0),
+});
+
+export function parseTaxRuleset(raw: unknown) {
+  return taxRulesetSchema.parse(raw);
+}
+
 export const KIND_LABELS: Record<BenefitKind, string> = {
   company: "会社退職金",
   dc: "iDeCo・企業型DC一時金",

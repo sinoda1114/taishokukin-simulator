@@ -122,7 +122,7 @@ export type PatternComparison = {
   kind: PatternKind;
   label: string;
   input: SimulationInput;
-  result: SimulationResult;
+  result?: SimulationResult;
   omittedReason?: string;
 };
 

@@ -9,7 +9,7 @@ import {
 } from "@/engine";
 import { getDb } from "@/db/client";
 import { simulations, taxRulesets, usageEvents } from "@/db/schema";
-import { parseSimulationInput } from "@/lib/parse-input";
+import { parseSimulationInput, parseTaxRuleset } from "@/lib/parse-input";
 
 function now() {
   return new Date();
@@ -47,7 +47,7 @@ export async function loadRuleset(): Promise<TaxRuleset> {
   const row = existing[0];
   if (!row) return defaultRuleset;
   try {
-    return JSON.parse(row.payloadJson) as TaxRuleset;
+    return parseTaxRuleset(JSON.parse(row.payloadJson));
   } catch {
     return defaultRuleset;
   }

@@ -10,7 +10,7 @@ import {
   type RuleMode,
   type SimulationInput,
 } from "@/engine";
-import { formatYen, KIND_LABELS, RULE_MODE_LABELS } from "@/lib/parse-input";
+import { KIND_LABELS, RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
 import { ResultPanel } from "./ResultPanel";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -51,15 +51,21 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const result = useMemo(() => simulate(input), [input]);
-  const patterns = useMemo(() => buildThreePatterns(input), [input]);
-  const search = useMemo(
-    () =>
-      input.benefits.some((b) => b.optimizeReceiptYear)
-        ? searchReceiptYears(input)
-        : null,
-    [input],
-  );
+  const computed = useMemo(() => {
+    try {
+      const parsed = parseSimulationInput(input);
+      return {
+        result: simulate(parsed),
+        patterns: buildThreePatterns(parsed),
+        search: parsed.benefits.some((b) => b.optimizeReceiptYear)
+          ? searchReceiptYears(parsed)
+          : null,
+        error: "",
+      };
+    } catch {
+      return { result: null, patterns: null, search: null, error: "入力が不正です。年数・金額を確認してください。" };
+    }
+  }, [input]);
 
   function updateBenefit(id: string, patch: Partial<BenefitInput>) {
     setInput((prev) => ({
@@ -181,6 +187,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
             onChange={(patch) => updateBenefit(benefit.id, patch)}
             onRemove={() => removeBenefit(benefit.id)}
             canRemove={input.benefits.length > 1}
+            canOptimize={Boolean(input.birthYearMonth) && benefit.kind === "dc"}
           />
         ))}
         <div className="row">
@@ -197,8 +204,11 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
             共有 URL: <a href={saveUrl}>{saveUrl}</a>
           </p>
         ) : null}
+        {computed.error ? <p className="warn">{computed.error}</p> : null}
       </section>
-      <ResultPanel result={result} patterns={patterns} search={search} />
+      {computed.result ? (
+        <ResultPanel result={computed.result} patterns={computed.patterns} search={computed.search} />
+      ) : null}
     </main>
   );
 }
@@ -209,12 +219,14 @@ function BenefitEditor({
   onChange,
   onRemove,
   canRemove,
+  canOptimize,
 }: {
   index: number;
   benefit: BenefitInput;
   onChange: (patch: Partial<BenefitInput>) => void;
   onRemove: () => void;
   canRemove: boolean;
+  canOptimize: boolean;
 }) {
   const useIntervals = Boolean(benefit.intervals && benefit.intervals.length > 0);
   return (
@@ -246,7 +258,7 @@ function BenefitEditor({
           <input
             type="number"
             value={benefit.incomeYen}
-            onChange={(e) => onChange({ incomeYen: Number(e.target.value) })}
+            onChange={(e) => onChange({ incomeYen: Number(e.target.value) || 0 })}
           />
         </label>
         <label>
@@ -254,7 +266,7 @@ function BenefitEditor({
           <input
             type="number"
             value={benefit.receiptYear}
-            onChange={(e) => onChange({ receiptYear: Number(e.target.value) })}
+            onChange={(e) => onChange({ receiptYear: Number(e.target.value) || benefit.receiptYear })}
           />
         </label>
         <label>
@@ -264,7 +276,7 @@ function BenefitEditor({
             value={benefit.serviceYears ?? ""}
             disabled={useIntervals}
             onChange={(e) =>
-              onChange({ serviceYears: e.target.value === "" ? undefined : Number(e.target.value) })
+              onChange({ serviceYears: Math.max(1, Number(e.target.value) || 1) })
             }
           />
         </label>
@@ -283,6 +295,7 @@ function BenefitEditor({
           </label>
         ) : null}
       </div>
+      {canOptimize ? (
       <label className="inline">
         <input
           type="checkbox"
@@ -291,6 +304,7 @@ function BenefitEditor({
         />
         受取年を探索する（iDeCo は 60〜75歳の暦年）
       </label>
+      ) : null}
       <label className="inline">
         <input
           type="checkbox"
