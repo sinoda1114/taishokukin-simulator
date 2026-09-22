@@ -64,6 +64,30 @@ test("375px visible text is at least 11px and skip link reaches results", async 
   expect(tooSmall).toEqual([]);
 });
 
+test("privacy and missing share have no results jump", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/privacy");
+  await expect(page.getByRole("link", { name: "結果を見る" })).toHaveCount(0);
+  await page.goto("/s/does-not-exist");
+  await expect(page.getByRole("link", { name: "結果を見る" })).toHaveCount(0);
+});
+
+test("375px DC benefit header stays in the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/");
+  const kind = page.getByRole("textbox", { name: "手当 2" });
+  await kind.scrollIntoViewIfNeeded();
+  const kindBox = await kind.boundingBox();
+  expect(kindBox).not.toBeNull();
+  expect(kindBox!.x).toBeGreaterThanOrEqual(0);
+  expect(kindBox!.x + kindBox!.width).toBeLessThanOrEqual(376);
+  const remove = page.getByRole("button", { name: "手当 2 を削除" });
+  await expect(remove).toBeVisible();
+  const removeBox = await remove.boundingBox();
+  expect(removeBox).not.toBeNull();
+  expect(removeBox!.x + removeBox!.width).toBeLessThanOrEqual(376);
+});
+
 test("primary controls keep a visible focus ring", async ({ page }) => {
   await page.goto("/");
   const share = page.getByRole("button", { name: "共有 URL を作る" });

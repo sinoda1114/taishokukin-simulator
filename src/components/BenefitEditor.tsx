@@ -49,7 +49,7 @@ export function BenefitEditor({
   return (
     <Paper className="panel" p="md">
       <Stack gap="sm">
-        <Group justify="space-between" wrap="nowrap" gap="sm" align="flex-end">
+        <Group justify="space-between" wrap="wrap" gap="sm" align="flex-end">
           <Select
             label={`手当 ${n}`}
             data={KIND_OPTIONS}
@@ -58,7 +58,7 @@ export function BenefitEditor({
               if (value && isBenefitKind(value)) onChange({ kind: value });
             }}
             allowDeselect={false}
-            style={{ flex: 1 }}
+            style={{ flex: "1 1 12rem", minWidth: 0 }}
           />
           {canRemove ? (
             <Button

@@ -156,7 +156,6 @@ a {
 
 .jump-results {
   display: inline-block;
-  margin-top: 12px;
 }
 
 @media (min-width: 48em) {

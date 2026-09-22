@@ -20,9 +20,6 @@ export function SiteFrame({ children }: { children: React.ReactNode }) {
           >
             退職金シミュレーター
           </Title>
-          <Anchor href="#results" className="jump-results" size="sm">
-            結果を見る
-          </Anchor>
           <Text className="lede" mt="sm" fz={{ base: "sm", sm: "md" }} lh={1.7} c="var(--ink-muted)">
             退職金と iDeCo 一時金を、どの順で受けると税がいくらになるかを試算します。
           </Text>

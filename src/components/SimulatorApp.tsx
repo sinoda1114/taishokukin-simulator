@@ -154,6 +154,9 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
       <Grid.Col span={{ base: 12, md: 5 }}>
         <Paper className="panel panel--flat" p={{ base: "md", sm: "lg" }} component="section" aria-labelledby="input-heading">
           <Stack gap="md">
+            <Anchor href="#results" className="jump-results" size="sm">
+              結果を見る
+            </Anchor>
             <Title order={2} id="input-heading">
               入力
             </Title>
