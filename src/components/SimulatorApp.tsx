@@ -7,6 +7,7 @@ import {
   Button,
   CopyButton,
   Grid,
+  Box,
   Group,
   Paper,
   Select,
@@ -150,11 +151,11 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
   }
 
   return (
-    <Grid gutter={{ base: "md", md: "lg" }} component="main" align="start">
+    <Grid id="main" gutter={{ base: "lg", md: "xl" }} component="main" align="start">
       <Grid.Col span={{ base: 12, md: 5 }}>
-        <Paper p={{ base: "md", sm: "lg" }} component="section">
+        <Paper className="panel panel--flat" p={{ base: "md", sm: "lg" }} component="section" aria-labelledby="input-heading">
           <Stack gap="md">
-            <Title order={2} fz="lg">
+            <Title order={2} id="input-heading">
               入力
             </Title>
             <Group grow preventGrowOverflow={false} wrap="wrap">
@@ -201,7 +202,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               }}
             />
             <Text size="sm" c="dimmed">
-              簡易入力の期間は仮置きです。終了は受取年の12月、開始は（受取年−年数+1）年1月。探索と3行比較では、いま表示している勤続期間を固定して受取年だけを動かします。
+              簡易の勤続は、受取年の12月から年数を遡った期間です。探索と3行比較は受取年だけを動かします。
             </Text>
             {input.benefits.map((benefit, index) => (
               <BenefitEditor
@@ -214,7 +215,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 canOptimize={Boolean(input.birthYearMonth) && benefit.kind === "dc"}
               />
             ))}
-            <Group grow preventGrowOverflow={false} wrap="wrap">
+            <Group className="hit-lg" grow preventGrowOverflow={false} wrap="wrap">
               <Button
                 type="button"
                 variant="default"
@@ -224,31 +225,46 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 手当を追加（最大6）
               </Button>
               <Button type="button" onClick={onSave} loading={saving}>
-                {saving ? "保存中…" : "共有 URL を作る"}
+                共有 URL を作る
               </Button>
             </Group>
-            {saveError ? <Alert color="red">{saveError}</Alert> : null}
+            {saveError ? (
+              <Alert className="notice notice--error" color="red">
+                {saveError}
+              </Alert>
+            ) : null}
             {saveUrl ? (
-              <Alert className="share" color="teal">
+              <Box className="share notice" role="status" aria-live="polite">
                 共有 URL:{" "}
                 <Anchor href={saveUrl} underline="always">
                   {saveUrl}
                 </Anchor>
                 <CopyButton value={absoluteShareUrl(saveUrl)}>
                   {({ copied, copy }) => (
-                    <Button size="compact-xs" variant="light" mt="xs" onClick={copy}>
+                    <Button size="compact-sm" variant="default" mt="xs" onClick={copy}>
                       {copied ? "コピーした" : "コピー"}
                     </Button>
                   )}
                 </CopyButton>
+              </Box>
+            ) : null}
+            {computed.error ? (
+              <Alert className="notice notice--error" color="red">
+                {computed.error}
               </Alert>
             ) : null}
-            {computed.error ? <Alert color="red">{computed.error}</Alert> : null}
           </Stack>
         </Paper>
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 7 }}>
-        <Paper p={{ base: "md", sm: "lg" }}>
+        <Paper
+          className="panel panel--raised"
+          p={{ base: "md", sm: "lg" }}
+          id="results"
+          component="section"
+          tabIndex={-1}
+          aria-labelledby="results-heading"
+        >
           {computed.result ? (
             <ResultPanel
               result={computed.result}

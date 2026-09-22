@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core";
 import { Providers } from "@/components/Providers";
 import { SiteFrame } from "@/components/SiteFrame";
@@ -15,6 +15,11 @@ export const metadata: Metadata = {
     description: "退職手当等の受取タイミングによる税額の試算。金額はOGPに出しません。",
     type: "website",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ebe7e0",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

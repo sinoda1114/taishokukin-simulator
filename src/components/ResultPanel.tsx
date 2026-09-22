@@ -3,11 +3,8 @@
 import {
   Accordion,
   Alert,
-  Badge,
   Group,
   List,
-  Paper,
-  SimpleGrid,
   Stack,
   Table,
   Text,
@@ -63,127 +60,130 @@ export function ResultPanel({
   const cards = patterns ? patternCards(patterns) : null;
 
   return (
-    <Stack gap="lg" component="section">
+    <Stack gap="lg">
       <div>
-        <Title order={2} fz="lg" mb="sm">
+        <Title order={2} mb="sm" id="results-heading">
           結果
         </Title>
         {result.totalTaxYen === null ? (
           <Alert color="yellow">勤続5年以下の手当があるため、税額は出していません。</Alert>
         ) : (
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-            <Paper p="md">
+          <Group justify="space-between" align="flex-start" wrap="wrap" gap="lg">
+            <div>
               <Text size="sm" c="dimmed">
                 合計税額
               </Text>
-              <Text fw={700} fz={{ base: 22, sm: 26 }} lh={1.3}>
-                {formatYen(result.totalTaxYen)}
-              </Text>
-            </Paper>
-            <Paper p="md">
+              <Text className="figure yen">{formatYen(result.totalTaxYen)}</Text>
+            </div>
+            <div>
               <Text size="sm" c="dimmed">
                 手取り
               </Text>
-              <Text fw={700} fz={{ base: 22, sm: 26 }} lh={1.3}>
-                {formatYen(result.totalNetYen)}
-              </Text>
-            </Paper>
-          </SimpleGrid>
+              <Text className="figure yen">{formatYen(result.totalNetYen)}</Text>
+            </div>
+          </Group>
         )}
-        <Text size="xs" c="dimmed" mt="xs">
+        <Text size="sm" c="dimmed" mt="xs">
           税率テーブル {result.rulesetVersion}
         </Text>
-        {result.warnings.map((w) => (
-          <Text key={w.code} size="sm" c="dimmed" mt="xs">
-            {w.message}
-          </Text>
-        ))}
+        {result.warnings.length > 0 ? (
+          <Accordion mt="sm" variant="default">
+            <Accordion.Item value="warnings">
+              <Accordion.Control>注意 {result.warnings.length}件</Accordion.Control>
+              <Accordion.Panel>
+                {result.warnings.map((w) => (
+                  <Text key={w.code} size="sm" c="dimmed">
+                    {w.message}
+                  </Text>
+                ))}
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
+        ) : null}
       </div>
 
       {cards ? (
         <div>
-          <Title order={2} fz="lg">
-            同時 / 退職金先 / iDeCo先
-          </Title>
+          <Title order={2}>同時 / 退職金先 / iDeCo先</Title>
           <Text size="sm" c="dimmed" mt={4} mb="sm">
-            会社退職金1本と DC1本のときだけ、この3行を出します。同時との差額は会社の受取年での同時受取が基準です。
+            会社1本と DC1本のときだけ出します。差額の基準は会社の受取年での同時受取です。
           </Text>
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+          <div className="ledger">
             {cards.map(({ pattern, tax, delta, isBest }) => (
-                <Paper
-                  key={pattern.kind}
-                  p="md"
-                  bd={isBest ? "2px solid var(--mantine-color-teal-6)" : undefined}
-                >
-                  <Group justify="space-between" gap="xs" wrap="nowrap">
-                    <Text fw={600} style={{ wordBreak: "keep-all" }}>
-                      {pattern.label}
-                    </Text>
-                    {isBest ? (
-                      <Badge color="teal" variant="light">
-                        税額最小
-                      </Badge>
-                    ) : null}
-                  </Group>
-                  <Text fw={700} fz={20} mt="xs">
-                    {pattern.omittedReason ? "—" : formatYen(tax)}
+              <div key={pattern.kind} className={isBest ? "ledger-cell is-best" : "ledger-cell"}>
+                <Group justify="space-between" gap="xs" wrap="nowrap">
+                  <Text fw={600} style={{ wordBreak: "keep-all" }}>
+                    {pattern.label}
                   </Text>
-                  <Text size="sm" c="dimmed" mt={4}>
-                    同時との差{" "}
-                    {delta === null ? "—" : `${delta > 0 ? "+" : ""}${formatYen(delta)}`}
-                  </Text>
-                  {pattern.omittedReason ? (
-                    <Text size="sm" c="yellow.8" mt="xs">
-                      {pattern.omittedReason}
+                  {isBest ? (
+                    <Text className="best-label" size="sm" fw={600}>
+                      税額最小
                     </Text>
                   ) : null}
-                </Paper>
+                </Group>
+                <Text className="yen" fw={600} fz={20} mt="xs">
+                  {pattern.omittedReason ? "—" : formatYen(tax)}
+                </Text>
+                {delta !== null && delta !== 0 ? (
+                  <Text size="sm" c="dimmed" mt={4} className="yen">
+                    同時との差 {delta > 0 ? "+" : ""}
+                    {formatYen(delta)}
+                  </Text>
+                ) : null}
+                {pattern.omittedReason ? (
+                  <Text size="sm" mt="xs" c="var(--ink-muted)">
+                    {pattern.omittedReason}
+                  </Text>
+                ) : null}
+              </div>
             ))}
-          </SimpleGrid>
+          </div>
         </div>
       ) : null}
 
-      <div>
-        <Title order={3} fz="md" mb="sm">
-          年次の内訳
-        </Title>
-        <Table.ScrollContainer minWidth={720} type="native">
-          <Table striped highlightOnHover withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>受取年</Table.Th>
-                <Table.Th>収入</Table.Th>
-                <Table.Th>勤続</Table.Th>
-                <Table.Th>控除（調整後）</Table.Th>
-                <Table.Th>課税所得</Table.Th>
-                <Table.Th>所得税</Table.Th>
-                <Table.Th>復興税</Table.Th>
-                <Table.Th>住民税</Table.Th>
-                <Table.Th>税額</Table.Th>
-                <Table.Th>手取り</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {result.years.map((year) => (
-                <Table.Tr key={year.year}>
-                  <Table.Td>{year.year}</Table.Td>
-                  <Table.Td>{formatYen(year.incomeYen)}</Table.Td>
-                  <Table.Td>{year.serviceYears}年</Table.Td>
-                  <Table.Td>{formatYen(year.deductionAfterAdjustmentYen)}</Table.Td>
-                  <Table.Td>{formatYen(year.taxableYen)}</Table.Td>
-                  <Table.Td>{formatYen(year.incomeTaxYen)}</Table.Td>
-                  <Table.Td>{formatYen(year.reconstructionTaxYen)}</Table.Td>
-                  <Table.Td>{formatYen(year.residentTaxYen)}</Table.Td>
-                  <Table.Td>{formatYen(year.totalTaxYen)}</Table.Td>
-                  <Table.Td>{formatYen(year.netYen)}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      </div>
+      <Accordion variant="default">
+        <Accordion.Item value="years">
+          <Accordion.Control>年次の内訳</Accordion.Control>
+          <Accordion.Panel>
+            <Table.ScrollContainer minWidth={720} type="native">
+              <Table withRowBorders>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>受取年</Table.Th>
+                    <Table.Th>収入</Table.Th>
+                    <Table.Th>勤続</Table.Th>
+                    <Table.Th>控除（調整後）</Table.Th>
+                    <Table.Th>課税所得</Table.Th>
+                    <Table.Th>所得税</Table.Th>
+                    <Table.Th>復興税</Table.Th>
+                    <Table.Th>住民税</Table.Th>
+                    <Table.Th>税額</Table.Th>
+                    <Table.Th>手取り</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {result.years.map((year) => (
+                    <Table.Tr key={year.year}>
+                      <Table.Td>{year.year}</Table.Td>
+                      <Table.Td className="yen">{formatYen(year.incomeYen)}</Table.Td>
+                      <Table.Td>{year.serviceYears}年</Table.Td>
+                      <Table.Td className="yen">{formatYen(year.deductionAfterAdjustmentYen)}</Table.Td>
+                      <Table.Td className="yen">{formatYen(year.taxableYen)}</Table.Td>
+                      <Table.Td className="yen">{formatYen(year.incomeTaxYen)}</Table.Td>
+                      <Table.Td className="yen">{formatYen(year.reconstructionTaxYen)}</Table.Td>
+                      <Table.Td className="yen">{formatYen(year.residentTaxYen)}</Table.Td>
+                      <Table.Td className="yen">{formatYen(year.totalTaxYen)}</Table.Td>
+                      <Table.Td className="yen">{formatYen(year.netYen)}</Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
 
-      <Accordion variant="separated">
+      <Accordion variant="default">
         {result.years.map((year) => (
           <Accordion.Item key={`steps-${year.year}`} value={String(year.year)}>
             <Accordion.Control>
@@ -217,26 +217,24 @@ export function ResultPanel({
 
       {search ? (
         <div>
-          <Title order={2} fz="lg">
-            受取年の探索
-          </Title>
+          <Title order={2}>受取年の探索</Title>
           {search.truncated ? (
             <Alert color="yellow" mt="sm">
               組合せが {search.combinationCount} あり、{search.hits.length} 件で打ち切りました。
             </Alert>
           ) : (
             <Text size="sm" c="dimmed" mt="xs">
-              探索 {search.combinationCount} 通り。税額最小を先に、同じ税額なら受取が早い順です。
+              {search.combinationCount} 通り。税額が小さい順、同額なら受取が早い順です。
             </Text>
           )}
           {search.best ? (
-            <Alert color="teal" mt="sm">
+            <Text mt="sm" size="sm">
               税額最小の試算: {receiptCaption(search.best.receiptYears, benefits)} ／{" "}
-              {formatYen(search.best.result.totalTaxYen)}
-            </Alert>
+              <span className="yen">{formatYen(search.best.result.totalTaxYen)}</span>
+            </Text>
           ) : null}
           <Table.ScrollContainer minWidth={360} type="native" mt="sm">
-            <Table striped withTableBorder>
+            <Table withRowBorders>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>受取年</Table.Th>
@@ -245,9 +243,12 @@ export function ResultPanel({
               </Table.Thead>
               <Table.Tbody>
                 {search.hits.slice(0, 8).map((hit, index) => (
-                  <Table.Tr key={JSON.stringify(hit.receiptYears)} bg={index === 0 ? "teal.0" : undefined}>
+                  <Table.Tr
+                    key={JSON.stringify(hit.receiptYears)}
+                    className={index === 0 ? "is-best-row" : undefined}
+                  >
                     <Table.Td>{receiptCaption(hit.receiptYears, benefits)}</Table.Td>
-                    <Table.Td>{formatYen(hit.result.totalTaxYen)}</Table.Td>
+                    <Table.Td className="yen">{formatYen(hit.result.totalTaxYen)}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>

@@ -1,11 +1,233 @@
+:root {
+  --paper: #ebe7e0;
+  --surface: #f6f4ef;
+  --ink: #161c28;
+  --ink-muted: #3a4450;
+  --rule: rgba(22, 28, 40, 0.12);
+  --rule-strong: rgba(22, 28, 40, 0.22);
+  --pine: #1f4d45;
+  --pine-wash: rgba(31, 77, 69, 0.1);
+  --danger: #7a2430;
+  --danger-wash: rgba(122, 36, 48, 0.08);
+  --shadow-rest: 0 1px 1px rgba(22, 28, 40, 0.04);
+  --shadow-raised:
+    0 1px 1px rgba(22, 28, 40, 0.05),
+    0 12px 32px rgba(22, 28, 40, 0.08);
+  --focus: #161c28;
+  --display-font: "Yu Mincho", "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Noto Serif JP",
+    "HGS明朝E", "MS PMincho", serif;
+  --mantine-color-dimmed: #3a4450;
+}
+
 html,
 body {
   margin: 0;
 }
 
+html {
+  font-size: 16px;
+  color-scheme: light;
+}
+
 body {
   min-height: 100vh;
-  background: #f3f0ea;
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[tabindex] {
+  -webkit-tap-highlight-color: rgba(22, 28, 40, 0.12);
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: 8px;
+  z-index: 20;
+  padding: 8px 12px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  transform: translateY(-160%);
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.site-header {
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.lede {
+  max-width: 40rem;
+}
+
+.disclaimer {
+  margin-top: 16px;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--rule);
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.panel--flat {
+  box-shadow: var(--shadow-rest);
+}
+
+.panel--raised {
+  box-shadow: var(--shadow-raised);
+}
+
+.figure {
+  font-family: var(--display-font);
+  font-weight: 600;
+  font-size: clamp(1.75rem, 4.8vw, 2.5rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+.yen {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+.ledger {
+  border-top: 1px solid var(--rule-strong);
+}
+
+.ledger-cell {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.ledger-cell.is-best {
+  box-shadow: inset 0 2px 0 var(--pine);
+}
+
+.ledger-cell.is-best .best-label {
+  color: var(--pine);
+}
+
+@media (min-width: 48em) {
+  .ledger {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 24px;
+    border-top: 1px solid var(--rule-strong);
+  }
+
+  .ledger-cell {
+    padding: 16px 0 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+}
+
+.benefit {
+  padding: 16px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.notice {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--rule);
+}
+
+.notice--error {
+  color: var(--danger);
+  border-top-color: var(--danger);
+}
+
+.is-best-row td {
+  background: var(--pine-wash);
+}
+
+.site-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+
+#main,
+#results {
+  scroll-margin-top: 16px;
+}
+
+#results:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+@media (max-width: 47.99em) {
+  .hit-lg {
+    min-height: 44px;
+  }
+
+  input,
+  select,
+  textarea,
+  .mantine-Input-input {
+    font-size: 16px !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mantine-Button-root,
+  a {
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease,
+      background-color 160ms ease,
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .mantine-Button-root:active {
+    transform: translateY(1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 .share {

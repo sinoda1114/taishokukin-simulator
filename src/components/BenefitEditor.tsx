@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  Button,
-  Checkbox,
-  Group,
-  Select,
-  SimpleGrid,
-  Stack,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Button, Checkbox, Group, Select, SimpleGrid, Stack, TextInput } from "@mantine/core";
 import type { BenefitInput, BenefitKind } from "@/engine";
 import { IntInput } from "./IntInput";
 import { KIND_LABELS } from "@/lib/parse-input";
@@ -35,29 +26,34 @@ export function BenefitEditor({
   canOptimize: boolean;
 }) {
   const useIntervals = Boolean(benefit.intervals && benefit.intervals.length > 0);
+  const n = index + 1;
 
   return (
-    <Stack gap="sm" p="md" style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}>
-      <Group justify="space-between" wrap="nowrap" gap="sm">
-        <Title order={3} fz="md" style={{ wordBreak: "keep-all" }}>
-          退職手当等 {index + 1}
-        </Title>
-        {canRemove ? (
-          <Button type="button" variant="default" size="compact-sm" onClick={onRemove}>
-            削除
-          </Button>
-        ) : null}
-      </Group>
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+    <Stack gap="sm" className="benefit">
+      <Group justify="space-between" wrap="nowrap" gap="sm" align="flex-end">
         <Select
-          label="種類"
+          label={`手当 ${n}`}
           data={KIND_OPTIONS}
           value={benefit.kind}
           onChange={(value) => {
             if (value) onChange({ kind: value as BenefitKind });
           }}
           allowDeselect={false}
+          style={{ flex: 1 }}
         />
+        {canRemove ? (
+          <Button
+            type="button"
+            variant="default"
+            size="compact-sm"
+            onClick={onRemove}
+            aria-label={`手当 ${n} を削除`}
+          >
+            削除
+          </Button>
+        ) : null}
+      </Group>
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
         <IntInput
           label="見込み受取額（円）"
           thousandSeparator=","
@@ -95,7 +91,7 @@ export function BenefitEditor({
       </SimpleGrid>
       {canOptimize ? (
         <Checkbox
-          label="受取年を探索する（iDeCo は 60〜75歳の暦年）"
+          label="受取年を探索（iDeCo は 60〜75歳）"
           checked={Boolean(benefit.optimizeReceiptYear)}
           onChange={(e) => onChange({ optimizeReceiptYear: e.currentTarget.checked })}
         />
@@ -106,7 +102,7 @@ export function BenefitEditor({
         onChange={(e) => onChange({ disability: e.currentTarget.checked })}
       />
       <Checkbox
-        label="勤続期間を年月の区間で入力する"
+        label="勤続を年月で入れる"
         checked={useIntervals}
         onChange={(e) => {
           if (e.currentTarget.checked) {

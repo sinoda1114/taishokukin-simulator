@@ -18,7 +18,7 @@ export default async function SharePage({
   const loaded = await loadSimulation(token);
   if (!loaded) {
     return (
-      <Stack component="main" gap="sm">
+      <Stack component="main" id="main" gap="sm">
         <Text>この共有 URL の試算は見つかりませんでした。</Text>
         <Anchor component={Link} href="/">
           トップへ戻る

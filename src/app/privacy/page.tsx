@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function PrivacyPage() {
   return (
-    <Stack gap="md" component="main" maw={720}>
+    <Stack gap="md" component="main" id="main" maw={720}>
       <Title order={2}>プライバシー</Title>
       <Text>
         保存するのは試算の入力（金額・年月・種類）と計算結果、共有用のランダムな token だけです。氏名・住所・口座は集めません。
