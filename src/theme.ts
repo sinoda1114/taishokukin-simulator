@@ -13,19 +13,6 @@ const ink: MantineColorsTuple = [
   "#161c28",
 ];
 
-const pine: MantineColorsTuple = [
-  "#e8f0ed",
-  "#c9dbd4",
-  "#9bbdb2",
-  "#6d9c8e",
-  "#4a7d6e",
-  "#35685b",
-  "#2a574c",
-  "#1f4d45",
-  "#183c36",
-  "#102924",
-];
-
 const DISPLAY =
   '"Yu Mincho", "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Noto Serif JP", "HGS明朝E", "MS PMincho", serif';
 const UI =
@@ -34,7 +21,7 @@ const UI =
 export const theme = createTheme({
   primaryColor: "ink",
   primaryShade: 9,
-  colors: { ink, pine },
+  colors: { ink },
   black: "#161c28",
   white: "#f6f4ef",
   fontFamily: UI,
@@ -62,11 +49,6 @@ export const theme = createTheme({
     lg: "24px",
     xl: "32px",
   },
-  shadows: {
-    xs: "0 1px 1px rgba(22, 28, 40, 0.05), 0 6px 16px rgba(22, 28, 40, 0.06)",
-    sm: "0 1px 1px rgba(22, 28, 40, 0.05), 0 10px 28px rgba(22, 28, 40, 0.08)",
-    md: "0 2px 2px rgba(22, 28, 40, 0.05), 0 16px 40px rgba(22, 28, 40, 0.1)",
-  },
   cursorType: "pointer",
   focusRing: "auto",
   fontSizes: {
@@ -88,9 +70,6 @@ export const theme = createTheme({
     },
     TextInput: {
       defaultProps: { size: "md" },
-    },
-    Paper: {
-      defaultProps: { radius: "xs", shadow: undefined, withBorder: false },
     },
     Accordion: {
       defaultProps: { radius: "xs" },

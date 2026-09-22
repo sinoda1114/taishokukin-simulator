@@ -20,10 +20,9 @@ import {
   searchReceiptYears,
   simulate,
   type BenefitInput,
-  type RuleMode,
   type SimulationInput,
 } from "@/engine";
-import { RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
+import { isRuleMode, RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
 import { BenefitEditor } from "./BenefitEditor";
 import { IntInput } from "./IntInput";
 import { ResultPanel } from "./ResultPanel";
@@ -53,9 +52,9 @@ const defaultInput: SimulationInput = {
   ],
 };
 
-const RULE_OPTIONS = (Object.keys(RULE_MODE_LABELS) as RuleMode[]).map((mode) => ({
-  value: mode,
-  label: RULE_MODE_LABELS[mode],
+const RULE_OPTIONS = Object.entries(RULE_MODE_LABELS).map(([value, label]) => ({
+  value,
+  label,
 }));
 
 function absoluteShareUrl(url: string): string {
@@ -198,7 +197,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               value={input.ruleMode}
               allowDeselect={false}
               onChange={(value) => {
-                if (value) setInput((prev) => ({ ...prev, ruleMode: value as RuleMode }));
+                if (value && isRuleMode(value)) setInput((prev) => ({ ...prev, ruleMode: value }));
               }}
             />
             <Text size="sm" c="dimmed">

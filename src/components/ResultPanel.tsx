@@ -5,6 +5,7 @@ import {
   Alert,
   Group,
   List,
+  SimpleGrid,
   Stack,
   Table,
   Text,
@@ -108,7 +109,7 @@ export function ResultPanel({
           <Text size="sm" c="dimmed" mt={4} mb="sm">
             会社1本と DC1本のときだけ出します。差額の基準は会社の受取年での同時受取です。
           </Text>
-          <div className="ledger">
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
             {cards.map(({ pattern, tax, delta, isBest }) => (
               <div key={pattern.kind} className={isBest ? "ledger-cell is-best" : "ledger-cell"}>
                 <Group justify="space-between" gap="xs" wrap="nowrap">
@@ -137,7 +138,7 @@ export function ResultPanel({
                 ) : null}
               </div>
             ))}
-          </div>
+          </SimpleGrid>
         </div>
       ) : null}
 

@@ -20,7 +20,7 @@ export function SiteFrame({ children }: { children: React.ReactNode }) {
           >
             退職金シミュレーター
           </Title>
-          <Anchor href="#results" hiddenFrom="md" size="sm" mt="sm" display="inline-block">
+          <Anchor href="#results" className="jump-results" size="sm">
             結果を見る
           </Anchor>
           <Text className="lede" mt="sm" fz={{ base: "sm", sm: "md" }} lh={1.7} c="var(--ink-muted)">
