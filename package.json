@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "db:migrate": "tsx src/db/migrate.ts"
+    "db:migrate": "tsx src/db/migrate.ts",
+    "pr:conversations": "bash scripts/pr-conversation-gate.sh",
+    "pr:conversations:resolve": "bash scripts/pr-conversation-gate.sh --resolve-safe",
+    "pr:conversations:resolve-all": "bash scripts/pr-conversation-gate.sh --resolve-all"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",

@@ -1,7 +1,7 @@
 "use client";
 
 import { Text } from "@mantine/core";
-import { valleyYears, type LinePoint } from "@/lib/chart-data";
+import { chartScale, valleyYears, type LinePoint } from "@/lib/chart-data";
 
 function compactYen(yen: number): string {
   if (yen >= 10_000) return `${Math.round(yen / 10_000)}万`;
@@ -22,13 +22,22 @@ export function SearchLine({ axisLabel, points }: { axisLabel: string; points: L
   const height = 160;
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
-  const xOf = (year: number) =>
-    pad.left + (maxYear === minYear ? innerW / 2 : ((year - minYear) / (maxYear - minYear)) * innerW);
-  const yOf = (tax: number) =>
-    pad.top + (maxTax === minTax ? innerH / 2 : (1 - (tax - minTax) / (maxTax - minTax)) * innerH);
-  const d = points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${xOf(point.year).toFixed(1)} ${yOf(point.taxYen).toFixed(1)}`)
-    .join(" ");
+  const xOf = (year: number) => chartScale(year, minYear, maxYear, pad.left, innerW);
+  const yOf = (tax: number) => pad.top + innerH - chartScale(tax, minTax, maxTax, 0, innerH);
+  const plotted = points
+    .map((point) => ({
+      year: point.year,
+      taxYen: point.taxYen,
+      x: xOf(point.year),
+      y: yOf(point.taxYen),
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+  const d =
+    plotted.length >= 2
+      ? plotted
+          .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+          .join(" ")
+      : "";
 
   return (
     <div className="line-chart">
@@ -62,13 +71,13 @@ export function SearchLine({ axisLabel, points }: { axisLabel: string; points: L
           x2={width - pad.right}
           y2={yOf(minTax)}
         />
-        <path className="chart-line" d={d} />
-        {points.map((point) => (
+        {d ? <path className="chart-line" d={d} /> : null}
+        {plotted.map((point) => (
           <circle
             key={point.year}
             className={valleys.has(point.year) ? "chart-dot is-valley" : "chart-dot"}
-            cx={xOf(point.year)}
-            cy={yOf(point.taxYen)}
+            cx={point.x}
+            cy={point.y}
             r={valleys.has(point.year) ? 4.5 : 3}
             aria-label={`${point.year}年 ${point.taxYen.toLocaleString("ja-JP")}円`}
           />

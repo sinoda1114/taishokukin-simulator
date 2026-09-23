@@ -3,6 +3,26 @@ import { KIND_LABELS } from "./parse-input";
 
 export type LinePoint = { year: number; taxYen: number };
 
+export function chartScale(
+  value: number,
+  min: number,
+  max: number,
+  start: number,
+  size: number,
+): number {
+  if (
+    !Number.isFinite(value) ||
+    !Number.isFinite(min) ||
+    !Number.isFinite(max) ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(size)
+  ) {
+    return start;
+  }
+  if (max === min) return start + size / 2;
+  return start + ((value - min) / (max - min)) * size;
+}
+
 export function searchLinePoints(
   hits: SearchHit[],
   benefits: BenefitInput[],

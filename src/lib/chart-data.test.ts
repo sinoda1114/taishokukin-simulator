@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SearchHit } from "@/engine";
-import { searchLinePoints, valleyYears } from "./chart-data";
+import { chartScale, searchLinePoints, valleyYears } from "./chart-data";
 
 function hit(dcYear: number, tax: number): SearchHit {
   return {
@@ -51,5 +51,18 @@ describe("searchLinePoints", () => {
     ]);
     expect(axisLabel).toContain("iDeCo");
     expect(points).toEqual([{ year: 2031, taxYen: 1_000_000 }]);
+  });
+});
+
+describe("chartScale", () => {
+  it("puts a single year or tax in the middle instead of dividing by zero", () => {
+    expect(chartScale(2030, 2030, 2030, 52, 256)).toBe(52 + 128);
+    expect(chartScale(1_200_000, 1_200_000, 1_200_000, 0, 116)).toBe(58);
+    expect(Number.isFinite(chartScale(2030, 2030, 2030, 52, 256))).toBe(true);
+  });
+
+  it("maps the ends of a range onto the drawable span", () => {
+    expect(chartScale(2025, 2025, 2040, 52, 256)).toBe(52);
+    expect(chartScale(2040, 2025, 2040, 52, 256)).toBe(308);
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Select, Text, TextInput } from "@mantine/core";
+import { pickerWindow } from "@/lib/picker-window";
 
 type Props = {
   label: string;
@@ -19,6 +20,10 @@ function optionLabel(value: number, suffix?: string): string {
   return suffix ? `${value}${suffix}` : String(value);
 }
 
+function option(value: number, suffix?: string): { value: string; label: string } {
+  return { value: String(value), label: optionLabel(value, suffix) };
+}
+
 export function DualIntField({
   label,
   value,
@@ -30,16 +35,24 @@ export function DualIntField({
   optionSuffix,
   pickerLabel,
 }: Props) {
+  const [opened, setOpened] = useState(false);
+  const trimmed = value.trim();
+  const selected =
+    /^\d+$/.test(trimmed) && Number(trimmed) >= min && Number(trimmed) <= max ? Number(trimmed) : null;
+
   const data = useMemo(() => {
+    if (selected === null && !opened) return [];
+    if (!opened) return selected === null ? [] : [option(selected, optionSuffix)];
+    const window = pickerWindow(min, max, selected);
     const options: { value: string; label: string }[] = [];
-    for (let n = min; n <= max; n += 1) {
-      options.push({ value: String(n), label: optionLabel(n, optionSuffix) });
+    for (let n = window.min; n <= window.max; n += 1) {
+      options.push(option(n, optionSuffix));
+    }
+    if (selected !== null && (selected < window.min || selected > window.max)) {
+      options.unshift(option(selected, optionSuffix));
     }
     return options;
-  }, [min, max, optionSuffix]);
-
-  const trimmed = value.trim();
-  const selected = /^\d+$/.test(trimmed) && Number(trimmed) >= min && Number(trimmed) <= max ? trimmed : null;
+  }, [opened, min, max, optionSuffix, selected]);
 
   return (
     <div className="dual-field">
@@ -58,7 +71,7 @@ export function DualIntField({
         <Select
           aria-label={pickerLabel ?? `${label}の選択`}
           data={data}
-          value={selected}
+          value={selected === null ? null : String(selected)}
           searchable
           allowDeselect={false}
           disabled={disabled}
@@ -69,6 +82,7 @@ export function DualIntField({
             position: "bottom-start",
             middlewares: { flip: true, shift: true },
           }}
+          onDropdownOpen={() => setOpened(true)}
           onChange={(next) => {
             if (next) onChange(next);
           }}
