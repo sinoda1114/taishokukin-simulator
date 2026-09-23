@@ -1,4 +1,4 @@
-import { reconstructSimpleInterval, yearOfAge, type YearMonth } from "@/engine";
+import { reconstructSimpleInterval, type YearMonth } from "@/engine";
 import { FIELD_RANGES, receiptAgeRange } from "./field-ranges";
 
 export type ParseResult = { ok: true; value: number } | { ok: false; error: string };
@@ -85,5 +85,5 @@ export function serviceConflictsWithReceipt(
 }
 
 export function receiptYearFromAge(birthYear: number, age: number): number {
-  return yearOfAge({ year: birthYear, month: 1 }, age);
+  return birthYear + age;
 }

@@ -9,14 +9,17 @@ export function searchLinePoints(
 ): { axisLabel: string; points: LinePoint[] } {
   if (hits.length === 0) return { axisLabel: "受取年", points: [] };
   const ids = Object.keys(hits[0]?.receiptYears ?? {});
-  let bestId = ids[0] ?? "";
-  let bestCount = -1;
-  for (const id of ids) {
-    const unique = new Set(hits.map((hit) => hit.receiptYears[id])).size;
-    const kind = benefits.find((benefit) => benefit.id === id)?.kind;
-    if (unique > bestCount || (unique === bestCount && kind === "dc")) {
-      bestCount = unique;
-      bestId = id;
+  const optimized = benefits.find((benefit) => benefit.optimizeReceiptYear && ids.includes(benefit.id));
+  let bestId = optimized?.id ?? "";
+  if (!bestId) {
+    let bestCount = -1;
+    for (const id of ids) {
+      const unique = new Set(hits.map((hit) => hit.receiptYears[id])).size;
+      const kind = benefits.find((benefit) => benefit.id === id)?.kind;
+      if (unique > bestCount || (unique === bestCount && kind === "dc")) {
+        bestCount = unique;
+        bestId = id;
+      }
     }
   }
   const byYear = new Map<number, number>();

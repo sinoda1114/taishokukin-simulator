@@ -75,24 +75,37 @@ function Choice({
   );
 }
 
-function dcAnswers(
-  draft: {
-    dcIncomeYen: string;
-    dcServiceYears: string;
-    dcReceiptAge: string;
-  },
-  birthYear: number,
-): { income: number; service: number; age: number } | { errors: Record<string, string> } {
-  const income = parseIncomeYen(draft.dcIncomeYen);
-  const service = parseServiceYears(draft.dcServiceYears, "拠出年数");
-  const age = parseReceiptAge(draft.dcReceiptAge, birthYear);
+type TripletOk = { ok: true; income: number; service: number; age: number };
+type TripletErr = { ok: false; errors: Record<string, string> };
+
+function parseTriplet(
+  raw: { income: string; service: string; age: string },
+  keys: { income: string; service: string; age: string },
+  birthYear: number | null,
+  serviceLabel: string,
+): TripletOk | TripletErr {
+  const income = parseIncomeYen(raw.income);
+  const service = parseServiceYears(raw.service, serviceLabel);
+  const age = parseReceiptAge(raw.age, birthYear);
   const errors: Record<string, string> = {};
-  if (!income.ok) errors.dcIncomeYen = income.error;
-  if (!service.ok) errors.dcServiceYears = service.error;
-  if (!age.ok) errors.dcReceiptAge = age.error;
-  if (Object.keys(errors).length > 0) return { errors };
-  if (!income.ok || !service.ok || !age.ok) return { errors };
-  return { income: income.value, service: service.value, age: age.value };
+  if (!income.ok) errors[keys.income] = income.error;
+  if (!service.ok) errors[keys.service] = service.error;
+  if (!age.ok) errors[keys.age] = age.error;
+  if (!income.ok || !service.ok || !age.ok) return { ok: false, errors };
+  return { ok: true, income: income.value, service: service.value, age: age.value };
+}
+
+function tenureConflict(
+  serviceYears: number,
+  receiptAge: number,
+  birthYear: number,
+  birthMonth: number | null,
+): string | null {
+  if (birthMonth === null) return null;
+  return serviceConflictsWithReceipt(serviceYears, receiptYearFromAge(birthYear, receiptAge), {
+    year: birthYear,
+    month: birthMonth,
+  });
 }
 
 export function HearingFlow({
@@ -143,54 +156,49 @@ export function HearingFlow({
     const birthM = parseMonth(draft.birthMonth, "生月");
     if (!birthY.ok) nextErrors.birthYear = birthY.error;
     if (!birthM.ok) nextErrors.birthMonth = birthM.error;
-    const income = parseIncomeYen(draft.companyIncomeYen);
-    const service = parseServiceYears(draft.companyServiceYears);
-    const age = parseReceiptAge(draft.companyReceiptAge, birthY.ok ? birthY.value : null);
-    if (!income.ok) nextErrors.companyIncomeYen = income.error;
-    if (!service.ok) nextErrors.companyServiceYears = service.error;
-    if (!age.ok) nextErrors.companyReceiptAge = age.error;
-    if (birthY.ok && service.ok && age.ok) {
-      const conflict = serviceConflictsWithReceipt(
-        service.value,
-        receiptYearFromAge(birthY.value, age.value),
-        { year: birthY.value, month: birthM.ok ? birthM.value : 1 },
-      );
+    const company = parseTriplet(
+      {
+        income: draft.companyIncomeYen,
+        service: draft.companyServiceYears,
+        age: draft.companyReceiptAge,
+      },
+      { income: "companyIncomeYen", service: "companyServiceYears", age: "companyReceiptAge" },
+      birthY.ok ? birthY.value : null,
+      "勤続年数",
+    );
+    if (!company.ok) Object.assign(nextErrors, company.errors);
+    else if (birthY.ok) {
+      const conflict = tenureConflict(company.service, company.age, birthY.value, birthM.ok ? birthM.value : null);
       if (conflict) nextErrors.companyReceiptAge = conflict;
     }
-    if (draft.hasDc) {
-      if (!birthY.ok) {
-        nextErrors.dcReceiptAge = "生年月を先に入れてください";
-      } else {
-        const dc = dcAnswers(draft, birthY.value);
-        if ("errors" in dc) Object.assign(nextErrors, dc.errors);
-        else {
-          const conflict = serviceConflictsWithReceipt(
-            dc.service,
-            receiptYearFromAge(birthY.value, dc.age),
-            { year: birthY.value, month: birthM.ok ? birthM.value : 1 },
-          );
-          if (conflict) nextErrors.dcReceiptAge = conflict;
-        }
-      }
+    const dc = draft.hasDc
+      ? parseTriplet(
+          { income: draft.dcIncomeYen, service: draft.dcServiceYears, age: draft.dcReceiptAge },
+          { income: "dcIncomeYen", service: "dcServiceYears", age: "dcReceiptAge" },
+          birthY.ok ? birthY.value : null,
+          "拠出年数",
+        )
+      : null;
+    if (dc && !dc.ok) Object.assign(nextErrors, dc.errors);
+    if (dc?.ok && birthY.ok && company.ok) {
+      const storedAge = draft.goal === "simultaneous" ? company.age : dc.age;
+      const conflict = tenureConflict(dc.service, storedAge, birthY.value, birthM.ok ? birthM.value : null);
+      if (conflict) nextErrors.dcReceiptAge = conflict;
     }
     if (Object.keys(nextErrors).length > 0) return { ok: false, errors: nextErrors };
-    if (!birthY.ok || !birthM.ok || !income.ok || !service.ok || !age.ok) {
-      return { ok: false, errors: nextErrors };
-    }
-    const dc = draft.hasDc && birthY.ok ? dcAnswers(draft, birthY.value) : null;
-    const dcOk = dc && !("errors" in dc) ? dc : { income: 0, service: 1, age: age.value };
+    if (!birthY.ok || !birthM.ok || !company.ok) return { ok: false, errors: nextErrors };
     return {
       ok: true,
       value: {
         birthYear: birthY.value,
         birthMonth: birthM.value,
-        companyIncomeYen: income.value,
-        companyServiceYears: service.value,
-        companyReceiptAge: age.value,
+        companyIncomeYen: company.income,
+        companyServiceYears: company.service,
+        companyReceiptAge: company.age,
         hasDc: draft.hasDc,
-        dcIncomeYen: dcOk.income,
-        dcServiceYears: dcOk.service,
-        dcReceiptAge: dcOk.age,
+        dcIncomeYen: dc?.ok ? dc.income : 0,
+        dcServiceYears: dc?.ok ? dc.service : 1,
+        dcReceiptAge: dc?.ok ? dc.age : company.age,
         hasExtra: draft.hasExtra,
         goal: draft.goal,
       },
@@ -206,38 +214,31 @@ export function HearingFlow({
       if (!month.ok) nextErrors.birthMonth = month.error;
     }
     if (step === "company") {
-      const income = parseIncomeYen(draft.companyIncomeYen);
-      const service = parseServiceYears(draft.companyServiceYears);
-      const age = parseReceiptAge(draft.companyReceiptAge, birthYear);
-      if (!income.ok) nextErrors.companyIncomeYen = income.error;
-      if (!service.ok) nextErrors.companyServiceYears = service.error;
-      if (!age.ok) nextErrors.companyReceiptAge = age.error;
-      if (birthYear !== null && service.ok && age.ok) {
+      const company = parseTriplet(
+        {
+          income: draft.companyIncomeYen,
+          service: draft.companyServiceYears,
+          age: draft.companyReceiptAge,
+        },
+        { income: "companyIncomeYen", service: "companyServiceYears", age: "companyReceiptAge" },
+        birthYear,
+        "勤続年数",
+      );
+      if (!company.ok) Object.assign(nextErrors, company.errors);
+      else if (birthYear !== null) {
         const month = parseMonth(draft.birthMonth, "生月");
-        const conflict = serviceConflictsWithReceipt(
-          service.value,
-          receiptYearFromAge(birthYear, age.value),
-          { year: birthYear, month: month.ok ? month.value : 1 },
-        );
+        const conflict = tenureConflict(company.service, company.age, birthYear, month.ok ? month.value : null);
         if (conflict) nextErrors.companyReceiptAge = conflict;
       }
     }
     if (step === "dc") {
-      const income = parseIncomeYen(draft.dcIncomeYen);
-      const service = parseServiceYears(draft.dcServiceYears, "拠出年数");
-      const age = parseReceiptAge(draft.dcReceiptAge, birthYear);
-      if (!income.ok) nextErrors.dcIncomeYen = income.error;
-      if (!service.ok) nextErrors.dcServiceYears = service.error;
-      if (!age.ok) nextErrors.dcReceiptAge = age.error;
-      if (birthYear !== null && service.ok && age.ok) {
-        const month = parseMonth(draft.birthMonth, "生月");
-        const conflict = serviceConflictsWithReceipt(
-          service.value,
-          receiptYearFromAge(birthYear, age.value),
-          { year: birthYear, month: month.ok ? month.value : 1 },
-        );
-        if (conflict) nextErrors.dcReceiptAge = conflict;
-      }
+      const dc = parseTriplet(
+        { income: draft.dcIncomeYen, service: draft.dcServiceYears, age: draft.dcReceiptAge },
+        { income: "dcIncomeYen", service: "dcServiceYears", age: "dcReceiptAge" },
+        birthYear,
+        "拠出年数",
+      );
+      if (!dc.ok) Object.assign(nextErrors, dc.errors);
     }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -250,6 +251,17 @@ export function HearingFlow({
       const parsed = parsedAnswers();
       if (!parsed.ok) {
         setErrors(parsed.errors);
+        if (parsed.errors.dcIncomeYen || parsed.errors.dcServiceYears || parsed.errors.dcReceiptAge) {
+          setStep("dc");
+        } else if (
+          parsed.errors.companyIncomeYen ||
+          parsed.errors.companyServiceYears ||
+          parsed.errors.companyReceiptAge
+        ) {
+          setStep("company");
+        } else if (parsed.errors.birthYear || parsed.errors.birthMonth) {
+          setStep("birth");
+        }
         return;
       }
       onComplete(inputFromAnswers(parsed.value, initial));

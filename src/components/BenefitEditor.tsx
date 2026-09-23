@@ -133,12 +133,12 @@ export function BenefitEditor({
         }
       });
     }
-    if (endAgeRaw.trim() !== "") {
+    if (benefit.kind === "dc" && endAgeRaw.trim() !== "") {
       const endAge = parseContributionEndAge(endAgeRaw);
       if (!endAge.ok) next.endAge = endAge.error;
     }
     return next;
-  }, [ageRaw, birth, endAgeRaw, incomeRaw, intervalDrafts, serviceRaw, useIntervals]);
+  }, [ageRaw, birth, benefit.kind, endAgeRaw, incomeRaw, intervalDrafts, serviceRaw, useIntervals]);
 
   const reportedOk = useRef<boolean | null>(null);
   useEffect(() => {
@@ -188,7 +188,13 @@ export function BenefitEditor({
             data={KIND_OPTIONS}
             value={benefit.kind}
             onChange={(value) => {
-              if (value && isBenefitKind(value)) onChange({ kind: value });
+              if (!value || !isBenefitKind(value)) return;
+              if (value !== "dc") {
+                setEndAgeRaw("");
+                onChange({ kind: value, contributionEndAge: undefined });
+                return;
+              }
+              onChange({ kind: value });
             }}
             allowDeselect={false}
             style={{ flex: "1 1 12rem", minWidth: 0 }}

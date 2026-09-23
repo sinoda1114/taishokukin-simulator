@@ -26,4 +26,30 @@ describe("searchLinePoints", () => {
     ]);
     expect(valleyYears(points)).toEqual([2032, 2033]);
   });
+
+  it("plots the benefit marked for search even when another year varies more", () => {
+    const hits: SearchHit[] = [
+      {
+        receiptYears: { company: 2030, dc: 2031 },
+        result: { totalTaxYen: 2_000_000 } as SearchHit["result"],
+      },
+      {
+        receiptYears: { company: 2031, dc: 2031 },
+        result: { totalTaxYen: 1_000_000 } as SearchHit["result"],
+      },
+    ];
+    const { axisLabel, points } = searchLinePoints(hits, [
+      { id: "company", kind: "company", incomeYen: 0, receiptYear: 2030, serviceYears: 30 },
+      {
+        id: "dc",
+        kind: "dc",
+        incomeYen: 0,
+        receiptYear: 2031,
+        serviceYears: 20,
+        optimizeReceiptYear: true,
+      },
+    ]);
+    expect(axisLabel).toContain("iDeCo");
+    expect(points).toEqual([{ year: 2031, taxYen: 1_000_000 }]);
+  });
 });
