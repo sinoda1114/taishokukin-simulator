@@ -21,7 +21,7 @@ export function SiteFrame({ children }: { children: React.ReactNode }) {
             退職金シミュレーター
           </Title>
           <Text className="lede" mt="sm" fz={{ base: "sm", sm: "md" }} lh={1.7} c="var(--ink-muted)">
-            退職金と iDeCo 一時金を、どの順で受けると税がいくらになるかを試算します。
+          退職金と iDeCo の一時金について、受け取る順ごとの税額を試算します。
           </Text>
           <Box className="disclaimer" role="note">
             <Text fw={600} c="var(--ink)">

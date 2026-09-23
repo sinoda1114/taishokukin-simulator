@@ -230,15 +230,9 @@ a {
   word-break: break-all;
 }
 
-.dual-field {
+.picker-field {
   min-width: 0;
   flex: 1 1 12rem;
-}
-
-.dual-pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
 }
 
 .field-error {
@@ -335,8 +329,8 @@ a {
 }
 
 @media (max-width: 47.99em) {
-  .dual-pair {
-    grid-template-columns: 1fr;
+  .picker-field {
+    flex-basis: 100%;
   }
 }
 

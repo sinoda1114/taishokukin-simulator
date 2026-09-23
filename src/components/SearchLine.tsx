@@ -42,7 +42,7 @@ export function SearchLine({ axisLabel, points }: { axisLabel: string; points: L
   return (
     <div className="line-chart">
       <Text size="sm" c="dimmed" mb={6}>
-        横軸は{axisLabel}、縦軸は税額です。下が谷です。
+        横軸は{axisLabel}、縦軸は税額です。税額が低いところが谷です。
       </Text>
       <svg
         className="line-svg"

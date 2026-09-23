@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Checkbox, Group, Paper, Select, Stack } from "@mantine/core";
 import { ageInCalendarYear, yearOfAge, type BenefitInput, type YearMonth } from "@/engine";
 import { IntInput } from "./IntInput";
-import { DualIntField } from "./DualIntField";
+import { IntPickerField } from "./IntPickerField";
 import { ReceiptAgeField } from "./ReceiptAgeField";
 import { isBenefitKind, KIND_LABELS } from "@/lib/parse-input";
 import { FIELD_RANGES } from "@/lib/field-ranges";
@@ -233,7 +233,7 @@ export function BenefitEditor({
           intervalDrafts.map((draft, i) => (
             <Stack key={`${benefit.id}-iv-${i}`} gap="sm">
               <Group grow preventGrowOverflow={false} wrap="wrap">
-                <DualIntField
+                <IntPickerField
                   label="開始年"
                   min={FIELD_RANGES.birthYear.min}
                   max={FIELD_RANGES.receiptYear.max}
@@ -242,7 +242,7 @@ export function BenefitEditor({
                   error={errors[`startYear-${i}`]}
                   onChange={(startYear) => commitInterval(i, { startYear })}
                 />
-                <DualIntField
+                <IntPickerField
                   label="開始月"
                   min={1}
                   max={12}
@@ -253,7 +253,7 @@ export function BenefitEditor({
                 />
               </Group>
               <Group grow preventGrowOverflow={false} wrap="wrap">
-                <DualIntField
+                <IntPickerField
                   label="終了年"
                   min={FIELD_RANGES.birthYear.min}
                   max={FIELD_RANGES.receiptYear.max}
@@ -262,7 +262,7 @@ export function BenefitEditor({
                   error={errors[`endYear-${i}`]}
                   onChange={(endYear) => commitInterval(i, { endYear })}
                 />
-                <DualIntField
+                <IntPickerField
                   label="終了月"
                   min={1}
                   max={12}
@@ -275,8 +275,8 @@ export function BenefitEditor({
             </Stack>
           ))
         ) : (
-          <DualIntField
-            label="勤続年数（簡易）"
+          <IntPickerField
+            label="勤続年数"
             min={FIELD_RANGES.serviceYears.min}
             max={FIELD_RANGES.serviceYears.max}
             optionSuffix="年"
@@ -286,7 +286,7 @@ export function BenefitEditor({
           />
         )}
         {benefit.kind === "dc" ? (
-          <DualIntField
+          <IntPickerField
             label="拠出終了年齢（任意）"
             min={FIELD_RANGES.contributionEndAge.min}
             max={FIELD_RANGES.contributionEndAge.max}
@@ -306,7 +306,7 @@ export function BenefitEditor({
         ) : null}
         {canOptimize ? (
           <Checkbox
-            label="受取年を探索（iDeCo は 60〜75歳）"
+            label="受取年を探索する（iDeCo は 60歳から75歳）"
             checked={Boolean(benefit.optimizeReceiptYear)}
             onChange={(e) => onChange({ optimizeReceiptYear: e.currentTarget.checked })}
           />
@@ -317,7 +317,7 @@ export function BenefitEditor({
           onChange={(e) => onChange({ disability: e.currentTarget.checked })}
         />
         <Checkbox
-          label="勤続を年月で入れる"
+          label="勤続期間を年月で入れる"
           checked={useIntervals}
           onChange={(e) => {
             if (e.currentTarget.checked) {

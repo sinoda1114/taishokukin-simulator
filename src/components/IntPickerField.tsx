@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Select, Text, TextInput } from "@mantine/core";
+import { Select, Text } from "@mantine/core";
 import { pickerWindow } from "@/lib/picker-window";
 
 type Props = {
@@ -13,7 +13,6 @@ type Props = {
   error?: string;
   disabled?: boolean;
   optionSuffix?: string;
-  pickerLabel?: string;
   pickerCenter?: number;
 };
 
@@ -25,7 +24,7 @@ function option(value: number, suffix?: string): { value: string; label: string 
   return { value: String(value), label: optionLabel(value, suffix) };
 }
 
-export function DualIntField({
+export function IntPickerField({
   label,
   value,
   min,
@@ -34,7 +33,6 @@ export function DualIntField({
   error,
   disabled,
   optionSuffix,
-  pickerLabel,
   pickerCenter,
 }: Props) {
   const [opened, setOpened] = useState(false);
@@ -56,40 +54,27 @@ export function DualIntField({
   }, [opened, min, max, optionSuffix, selected, typed, pickerCenter]);
 
   return (
-    <div className="dual-field">
-      <Text size="sm" fw={600} mb={6}>
-        {label}
-      </Text>
-      <div className="dual-pair">
-        <TextInput
-          aria-label={label}
-          value={value}
-          inputMode="numeric"
-          aria-invalid={Boolean(error)}
-          disabled={disabled}
-          onChange={(event) => onChange(event.currentTarget.value)}
-        />
-        <Select
-          aria-label={pickerLabel ?? `${label}の選択`}
-          data={data}
-          value={selected === null ? null : String(selected)}
-          searchable
-          allowDeselect={false}
-          disabled={disabled}
-          nothingFoundMessage="見つかりません"
-          maxDropdownHeight={240}
-          comboboxProps={{
-            withinPortal: true,
-            position: "bottom-start",
-            middlewares: { flip: true, shift: true },
-          }}
-          onDropdownOpen={() => setOpened(true)}
-          onSearchChange={setQuery}
-          onChange={(next) => {
-            if (next) onChange(next);
-          }}
-        />
-      </div>
+    <div className="picker-field">
+      <Select
+        label={label}
+        data={data}
+        value={selected === null ? null : String(selected)}
+        searchable
+        clearable
+        disabled={disabled}
+        aria-invalid={Boolean(error)}
+        clearButtonProps={{ "aria-label": `${label}を消す` }}
+        nothingFoundMessage="該当する値がありません"
+        maxDropdownHeight={240}
+        comboboxProps={{
+          withinPortal: true,
+          position: "bottom-start",
+          middlewares: { flip: true, shift: true },
+        }}
+        onDropdownOpen={() => setOpened(true)}
+        onSearchChange={setQuery}
+        onChange={(next) => onChange(next ?? "")}
+      />
       {error ? (
         <Text className="field-error" size="sm" mt={6} role="alert">
           {error}
