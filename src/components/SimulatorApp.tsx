@@ -16,17 +16,21 @@ import {
   Title,
 } from "@mantine/core";
 import {
+  ageInCalendarYear,
   buildThreePatterns,
   searchReceiptYears,
   simulate,
+  yearOfAge,
   type BenefitInput,
   type SimulationInput,
 } from "@/engine";
 import { isRuleMode, RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
 import { defaultInput } from "@/lib/default-input";
+import { FIELD_RANGES } from "@/lib/field-ranges";
+import { parseBirthYear, parseMonth } from "@/lib/field-validation";
 import { HearingFlow } from "./HearingFlow";
 import { BenefitEditor } from "./BenefitEditor";
-import { IntInput } from "./IntInput";
+import { DualIntField } from "./DualIntField";
 import { ResultPanel } from "./ResultPanel";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -55,8 +59,24 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
   const [saveUrl, setSaveUrl] = useState(shareToken ? `/s/${shareToken}` : "");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [birthYearRaw, setBirthYearRaw] = useState(String(input.birthYearMonth?.year ?? ""));
+  const [birthMonthRaw, setBirthMonthRaw] = useState(String(input.birthYearMonth?.month ?? ""));
+  const [benefitOk, setBenefitOk] = useState<Record<string, boolean>>({});
+
+  const birthYearParsed = parseBirthYear(birthYearRaw);
+  const birthMonthParsed = parseMonth(birthMonthRaw, "生月");
+  const birthValid = birthYearParsed.ok && birthMonthParsed.ok;
+  const benefitsValid = input.benefits.every((benefit) => benefitOk[benefit.id] !== false);
 
   const computed = useMemo(() => {
+    if (!birthValid || !benefitsValid) {
+      return {
+        result: null,
+        patterns: null,
+        search: null,
+        error: "",
+      };
+    }
     try {
       const parsed = parseSimulationInput(input);
       return {
@@ -75,7 +95,27 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
         error: "入力が不正です。年数・金額を確認してください。",
       };
     }
-  }, [input]);
+  }, [benefitsValid, birthValid, input]);
+
+  function commitBirth(yearRaw: string, monthRaw: string) {
+    const year = parseBirthYear(yearRaw);
+    const month = parseMonth(monthRaw, "生月");
+    if (!year.ok || !month.ok) return;
+    const nextBirth = { year: year.value, month: month.value };
+    setInput((prev) => {
+      const previousBirth = prev.birthYearMonth;
+      return {
+        ...prev,
+        birthYearMonth: nextBirth,
+        benefits: previousBirth
+          ? prev.benefits.map((benefit) => ({
+              ...benefit,
+              receiptYear: yearOfAge(nextBirth, ageInCalendarYear(previousBirth, benefit.receiptYear)),
+            }))
+          : prev.benefits,
+      };
+    });
+  }
 
   function updateBenefit(id: string, patch: Partial<BenefitInput>) {
     setInput((prev) => ({
@@ -138,6 +178,8 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
         onSkip={() => setPhase("results")}
         onComplete={(next) => {
           setInput(next);
+          setBirthYearRaw(String(next.birthYearMonth?.year ?? ""));
+          setBirthMonthRaw(String(next.birthYearMonth?.month ?? ""));
           setPhase("results");
         }}
       />
@@ -161,39 +203,34 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               </button>
             </Group>
             <Group grow preventGrowOverflow={false} wrap="wrap">
-              <IntInput
+              <DualIntField
                 label="生年"
-                min={1900}
-                max={2200}
-                value={input.birthYearMonth?.year ?? ""}
-                emptyValue={input.birthYearMonth?.year ?? 1965}
-                onValue={(year) =>
-                  setInput((prev) => ({
-                    ...prev,
-                    birthYearMonth: {
-                      year,
-                      month: prev.birthYearMonth?.month ?? 1,
-                    },
-                  }))
-                }
+                min={FIELD_RANGES.birthYear.min}
+                max={FIELD_RANGES.birthYear.max}
+                optionSuffix="年"
+                value={birthYearRaw}
+                error={birthYearParsed.ok ? undefined : birthYearParsed.error}
+                onChange={(raw) => {
+                  setBirthYearRaw(raw);
+                  commitBirth(raw, birthMonthRaw);
+                }}
               />
-              <IntInput
+              <DualIntField
                 label="生月"
-                min={1}
-                max={12}
-                value={input.birthYearMonth?.month ?? ""}
-                emptyValue={input.birthYearMonth?.month ?? 1}
-                onValue={(month) =>
-                  setInput((prev) => ({
-                    ...prev,
-                    birthYearMonth: {
-                      year: prev.birthYearMonth?.year ?? 1965,
-                      month,
-                    },
-                  }))
-                }
+                min={FIELD_RANGES.month.min}
+                max={FIELD_RANGES.month.max}
+                optionSuffix="月"
+                value={birthMonthRaw}
+                error={birthMonthParsed.ok ? undefined : birthMonthParsed.error}
+                onChange={(raw) => {
+                  setBirthMonthRaw(raw);
+                  commitBirth(birthYearRaw, raw);
+                }}
               />
             </Group>
+            <Text size="sm" c="dimmed">
+              受取は年齢で入れます。受取年は、その年齢の誕生日を迎える暦年です。
+            </Text>
             <Select
               label="適用ルール"
               data={RULE_OPTIONS}
@@ -211,8 +248,12 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 key={benefit.id}
                 index={index}
                 benefit={benefit}
+                birth={input.birthYearMonth}
                 onChange={(patch) => updateBenefit(benefit.id, patch)}
                 onRemove={() => removeBenefit(benefit.id)}
+                onValidityChange={(ok) =>
+                  setBenefitOk((prev) => (prev[benefit.id] === ok ? prev : { ...prev, [benefit.id]: ok }))
+                }
                 canRemove={input.benefits.length > 1}
                 canOptimize={Boolean(input.birthYearMonth) && benefit.kind === "dc"}
               />
@@ -226,7 +267,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               >
                 手当を追加（最大6）
               </Button>
-              <Button type="button" onClick={onSave} loading={saving}>
+              <Button type="button" onClick={onSave} loading={saving} disabled={!birthValid || !benefitsValid}>
                 共有 URL を作る
               </Button>
             </Group>

@@ -10,13 +10,14 @@ async function completeSampleHearing(page: Page) {
   await expect(page.getByRole("heading", { name: "生年と生月はいつですか" })).toBeVisible();
   await page.getByRole("button", { name: "次へ" }).click();
   await expect(
-    page.getByRole("heading", { name: "会社の退職金は、いくらで、何年勤めて、何年に受けますか" }),
+    page.getByRole("heading", { name: "会社の退職金は、いくらで、何年勤めて、何歳で受けますか" }),
   ).toBeVisible();
+  await expect(page.getByText("受取年は 2030年です")).toBeVisible();
   await page.getByRole("button", { name: "次へ" }).click();
   await expect(page.getByRole("heading", { name: "iDeCo か企業型 DC の一時金はありますか" })).toBeVisible();
   await expect(page.getByRole("button", { name: "ある", pressed: true })).toBeVisible();
   await page.getByRole("button", { name: "次へ" }).click();
-  await expect(page.getByRole("heading", { name: "その額、拠出年数、受取年は" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "その額、拠出年数、受取年齢は" })).toBeVisible();
   await page.getByRole("button", { name: "次へ" }).click();
   await expect(page.getByRole("heading", { name: "ほかに退職手当はありますか" })).toBeVisible();
   await expect(page.getByRole("button", { name: "ない", pressed: true })).toBeVisible();
@@ -60,7 +61,7 @@ test("hearing answers land on the current results screen", async ({ page }) => {
   await expect(page.getByText("合計税額")).toBeVisible();
   await expect(page.getByText("1,861,869円").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "同時 / 退職金先 / iDeCo先" })).toBeVisible();
-  await expect(page.getByLabel("生年")).toHaveValue("1965");
+  await expect(page.getByRole("textbox", { name: "生年" })).toHaveValue("1965");
   await expect(page.getByLabel("見込み受取額（円）").first()).toHaveValue("20,000,000");
   await expect(page.getByRole("button", { name: "共有 URL を作る" })).toBeVisible();
   await page.getByRole("button", { name: "ヒアリングに戻る" }).click();
@@ -174,3 +175,60 @@ test("primary controls keep a visible focus ring", async ({ page }) => {
   const hasShadow = ring.boxShadow !== "none";
   expect(hasOutline || hasShadow).toBeTruthy();
 });
+
+test("hearing keeps text and picker, and blocks empty age", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "次へ" }).click();
+  await expect(page.getByRole("textbox", { name: "勤続年数" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "勤続年数の選択" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "受取年齢" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "受取年齢の選択" })).toBeVisible();
+  await page.getByRole("textbox", { name: "受取年齢" }).fill("");
+  await page.getByRole("button", { name: "次へ" }).click();
+  await expect(page.getByText("受取年齢を入れてください")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "iDeCo か企業型 DC の一時金はありますか" })).toHaveCount(0);
+});
+
+test("skip shows pattern bars and a search line", async ({ page }) => {
+  await startFromInputs(page);
+  await expect(page.getByRole("img", { name: "3パターンの税額比較" })).toBeVisible();
+  await expect(page.locator(".bar-fill.is-best")).toHaveCount(1);
+  await expect(page.getByRole("img", { name: /税額の折れ線/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "探索の表" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "受取年" })).toHaveCount(0);
+});
+
+test("375px bars and search line stay on screen", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await startFromInputs(page);
+  const bars = page.getByRole("img", { name: "3パターンの税額比較" });
+  await bars.scrollIntoViewIfNeeded();
+  const barBox = await bars.boundingBox();
+  expect(barBox).not.toBeNull();
+  expect(barBox!.x).toBeGreaterThanOrEqual(0);
+  expect(barBox!.x + barBox!.width).toBeLessThanOrEqual(376);
+  const fillBox = await page.locator(".bar-fill.is-best").boundingBox();
+  expect(fillBox).not.toBeNull();
+  expect(fillBox!.width).toBeGreaterThan(24);
+  expect(fillBox!.height).toBeGreaterThanOrEqual(12);
+  const line = page.getByRole("img", { name: /税額の折れ線/ });
+  await line.scrollIntoViewIfNeeded();
+  const lineBox = await line.boundingBox();
+  expect(lineBox).not.toBeNull();
+  expect(lineBox!.x).toBeGreaterThanOrEqual(0);
+  expect(lineBox!.x + lineBox!.width).toBeLessThanOrEqual(376);
+  expect(lineBox!.height).toBeGreaterThan(80);
+});
+
+test("375px year picker stays in the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "生年の選択" }).click();
+  const option = page.getByRole("option", { name: "1965年" });
+  await expect(option).toBeVisible();
+  const box = await option.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(376);
+});
+

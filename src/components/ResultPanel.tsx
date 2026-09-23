@@ -11,8 +11,12 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import { useMemo } from "react";
 import type { BenefitInput, PatternComparison, SearchResult, SimulationResult } from "@/engine";
 import { KIND_LABELS, formatYen } from "@/lib/parse-input";
+import { searchLinePoints } from "@/lib/chart-data";
+import { PatternBars } from "./PatternBars";
+import { SearchLine } from "./SearchLine";
 
 function receiptCaption(receiptYears: Record<string, number>, benefits: BenefitInput[]): string {
   return Object.entries(receiptYears)
@@ -59,6 +63,10 @@ export function ResultPanel({
   benefits: BenefitInput[];
 }) {
   const cards = patterns ? patternCards(patterns) : null;
+  const line = useMemo(
+    () => (search ? searchLinePoints(search.hits, benefits) : null),
+    [benefits, search],
+  );
 
   return (
     <Stack gap="lg">
@@ -109,7 +117,16 @@ export function ResultPanel({
           <Text size="sm" c="dimmed" mt={4} mb="sm">
             会社1本と DC1本のときだけ出します。差額の基準は会社の受取年での同時受取です。
           </Text>
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg">
+          <PatternBars
+            rows={cards.map(({ pattern, tax, isBest }) => ({
+              key: pattern.kind,
+              label: pattern.label,
+              tax,
+              isBest,
+              omitted: pattern.omittedReason,
+            }))}
+          />
+          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg" mt="md">
             {cards.map(({ pattern, tax, delta, isBest }) => (
               <div key={pattern.kind} className={isBest ? "ledger-cell is-best" : "ledger-cell"}>
                 <Group justify="space-between" gap="xs" wrap="nowrap">
@@ -234,27 +251,35 @@ export function ResultPanel({
               <span className="yen">{formatYen(search.best.result.totalTaxYen)}</span>
             </Text>
           ) : null}
-          <Table.ScrollContainer minWidth={360} type="native" mt="sm">
-            <Table withRowBorders>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>受取年</Table.Th>
-                  <Table.Th>税額</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {search.hits.slice(0, 8).map((hit, index) => (
-                  <Table.Tr
-                    key={JSON.stringify(hit.receiptYears)}
-                    className={index === 0 ? "is-best-row" : undefined}
-                  >
-                    <Table.Td>{receiptCaption(hit.receiptYears, benefits)}</Table.Td>
-                    <Table.Td className="yen">{formatYen(hit.result.totalTaxYen)}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
+          {line ? <SearchLine axisLabel={line.axisLabel} points={line.points} /> : null}
+          <Accordion variant="default" mt="sm">
+            <Accordion.Item value="search-table">
+              <Accordion.Control>探索の表</Accordion.Control>
+              <Accordion.Panel>
+                <Table.ScrollContainer minWidth={360} type="native">
+                  <Table withRowBorders>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>受取年</Table.Th>
+                        <Table.Th>税額</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {search.hits.slice(0, 8).map((hit, index) => (
+                        <Table.Tr
+                          key={JSON.stringify(hit.receiptYears)}
+                          className={index === 0 ? "is-best-row" : undefined}
+                        >
+                          <Table.Td>{receiptCaption(hit.receiptYears, benefits)}</Table.Td>
+                          <Table.Td className="yen">{formatYen(hit.result.totalTaxYen)}</Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Table.ScrollContainer>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
         </div>
       ) : null}
     </Stack>

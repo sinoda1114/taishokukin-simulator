@@ -1,4 +1,4 @@
-import type { BenefitInput, SimulationInput } from "@/engine";
+import { ageInCalendarYear, yearOfAge, type BenefitInput, type SimulationInput } from "@/engine";
 import { defaultInput } from "./default-input";
 
 export type HearingGoal = "simultaneous" | "sequence";
@@ -8,11 +8,11 @@ export type HearingAnswers = {
   birthMonth: number;
   companyIncomeYen: number;
   companyServiceYears: number;
-  companyReceiptYear: number;
+  companyReceiptAge: number;
   hasDc: boolean;
   dcIncomeYen: number;
   dcServiceYears: number;
-  dcReceiptYear: number;
+  dcReceiptAge: number;
   hasExtra: boolean;
   goal: HearingGoal;
 };
@@ -76,16 +76,17 @@ export function answersFromInput(input: SimulationInput): HearingAnswers {
   const dc = firstOfKind(input.benefits, "dc");
   const extra = input.benefits.some((benefit) => !isPrimary(benefit, company, dc));
   const yearsDiffer = Boolean(dc && company && dc.receiptYear !== company.receiptYear);
+  const birth = input.birthYearMonth ?? defaultInput.birthYearMonth ?? { year: 1965, month: 4 };
   return {
-    birthYear: input.birthYearMonth?.year ?? defaultInput.birthYearMonth?.year ?? 1965,
-    birthMonth: input.birthYearMonth?.month ?? defaultInput.birthYearMonth?.month ?? 4,
+    birthYear: birth.year,
+    birthMonth: birth.month,
     companyIncomeYen: company?.incomeYen ?? sampleCompany?.incomeYen ?? 0,
     companyServiceYears: company?.serviceYears ?? sampleCompany?.serviceYears ?? 1,
-    companyReceiptYear: company?.receiptYear ?? sampleCompany?.receiptYear ?? 2030,
+    companyReceiptAge: company ? ageInCalendarYear(birth, company.receiptYear) : 65,
     hasDc: Boolean(dc),
     dcIncomeYen: dc?.incomeYen ?? sampleDc?.incomeYen ?? 0,
     dcServiceYears: dc?.serviceYears ?? sampleDc?.serviceYears ?? 1,
-    dcReceiptYear: dc?.receiptYear ?? sampleDc?.receiptYear ?? 2030,
+    dcReceiptAge: dc ? ageInCalendarYear(birth, dc.receiptYear) : 65,
     hasExtra: extra,
     goal: dc?.optimizeReceiptYear || yearsDiffer ? "sequence" : "simultaneous",
   };
@@ -95,6 +96,9 @@ export function inputFromAnswers(
   answers: HearingAnswers,
   previous: SimulationInput = defaultInput,
 ): SimulationInput {
+  const birth = { year: answers.birthYear, month: answers.birthMonth };
+  const companyYear = yearOfAge(birth, answers.companyReceiptAge);
+  const dcYear = yearOfAge(birth, answers.dcReceiptAge);
   const previousBenefits = previous.benefits;
   const prevCompany = firstOfKind(previousBenefits, "company");
   const prevDc = firstOfKind(previousBenefits, "dc");
@@ -103,7 +107,7 @@ export function inputFromAnswers(
     kind: "company",
     incomeYen: answers.companyIncomeYen,
     serviceYears: Math.max(1, answers.companyServiceYears),
-    receiptYear: answers.companyReceiptYear,
+    receiptYear: companyYear,
   });
   const dc = answers.hasDc
     ? patchBenefit(prevDc, {
@@ -111,8 +115,7 @@ export function inputFromAnswers(
         kind: "dc",
         incomeYen: answers.dcIncomeYen,
         serviceYears: Math.max(1, answers.dcServiceYears),
-        receiptYear:
-          answers.goal === "simultaneous" ? answers.companyReceiptYear : answers.dcReceiptYear,
+        receiptYear: answers.goal === "simultaneous" ? companyYear : dcYear,
         optimizeReceiptYear: answers.goal === "sequence",
       })
     : undefined;

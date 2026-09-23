@@ -230,6 +230,116 @@ a {
   word-break: break-all;
 }
 
+.dual-field {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.dual-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.field-error {
+  color: var(--danger);
+}
+
+.derived-year {
+  color: var(--ink-muted);
+}
+
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.bar-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.bar-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  background: var(--pine);
+  vertical-align: middle;
+}
+
+.bar-track {
+  margin-top: 6px;
+  height: 16px;
+  background: var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--indigo);
+}
+
+.bar-fill.is-best {
+  background: var(--pine);
+}
+
+.line-chart {
+  min-width: 0;
+  margin-top: 12px;
+}
+
+.line-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 140px;
+  overflow: visible;
+}
+
+.chart-axis {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.chart-valley {
+  stroke: var(--pine);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--indigo);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-dot {
+  fill: var(--indigo);
+}
+
+.chart-dot.is-valley {
+  fill: var(--pine);
+}
+
+.chart-label {
+  fill: var(--ink-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 47.99em) {
+  .dual-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
 .hearing {
   max-width: 40rem;
   margin-inline: auto;
