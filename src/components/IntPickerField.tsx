@@ -96,6 +96,10 @@ export function IntPickerField({
           setQuery("");
         }}
         onDropdownClose={() => {
+          const typed = Number(typedDigits);
+          if (typedDigits !== "" && Number.isInteger(typed) && typed >= min && typed <= max) {
+            onChange(String(typed));
+          }
           setOpened(false);
           setQuery("");
         }}

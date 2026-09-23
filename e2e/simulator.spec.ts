@@ -255,6 +255,16 @@ test("typing into a filled year picker jumps to that year", async ({ page }) => 
   await expect(picker).toHaveValue("2010年");
 });
 
+test("typed year commits when the next step is opened", async ({ page }) => {
+  await page.goto("/");
+  const picker = page.getByRole("textbox", { name: "生年" });
+  await picker.click();
+  await picker.pressSequentially("2015");
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "戻る" }).click();
+  await expect(page.getByRole("textbox", { name: "生年" })).toHaveValue("2015年");
+});
+
 test("partial year digits open the 2000s, not 1920", async ({ page }) => {
   await page.goto("/");
   const picker = page.getByRole("textbox", { name: "生年" });
