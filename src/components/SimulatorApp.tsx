@@ -210,6 +210,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 optionSuffix="年"
                 value={birthYearRaw}
                 error={birthYearParsed.ok ? undefined : birthYearParsed.error}
+                pickerCenter={new Date().getFullYear()}
                 onChange={(raw) => {
                   setBirthYearRaw(raw);
                   commitBirth(raw, birthMonthRaw);

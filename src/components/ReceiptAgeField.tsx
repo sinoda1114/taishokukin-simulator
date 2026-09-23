@@ -33,6 +33,7 @@ export function ReceiptAgeField({ value, birthYear, onChange, error }: Props) {
         optionSuffix="歳"
         disabled={birthYear === null}
         error={error}
+        pickerCenter={65}
         onChange={onChange}
       />
       {birthYear === null ? (

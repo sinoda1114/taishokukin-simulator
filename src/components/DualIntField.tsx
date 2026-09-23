@@ -14,6 +14,7 @@ type Props = {
   disabled?: boolean;
   optionSuffix?: string;
   pickerLabel?: string;
+  pickerCenter?: number;
 };
 
 function optionLabel(value: number, suffix?: string): string {
@@ -34,25 +35,25 @@ export function DualIntField({
   disabled,
   optionSuffix,
   pickerLabel,
+  pickerCenter,
 }: Props) {
   const [opened, setOpened] = useState(false);
+  const [query, setQuery] = useState("");
   const trimmed = value.trim();
   const selected =
     /^\d+$/.test(trimmed) && Number(trimmed) >= min && Number(trimmed) <= max ? Number(trimmed) : null;
+  const typed = /^\d+$/.test(query.trim()) ? Number(query.trim()) : null;
 
   const data = useMemo(() => {
-    if (selected === null && !opened) return [];
     if (!opened) return selected === null ? [] : [option(selected, optionSuffix)];
-    const window = pickerWindow(min, max, selected);
+    const center = selected ?? typed ?? pickerCenter ?? Math.round((min + max) / 2);
+    const window = pickerWindow(min, max, center);
     const options: { value: string; label: string }[] = [];
     for (let n = window.min; n <= window.max; n += 1) {
       options.push(option(n, optionSuffix));
     }
-    if (selected !== null && (selected < window.min || selected > window.max)) {
-      options.unshift(option(selected, optionSuffix));
-    }
     return options;
-  }, [opened, min, max, optionSuffix, selected]);
+  }, [opened, min, max, optionSuffix, selected, typed, pickerCenter]);
 
   return (
     <div className="dual-field">
@@ -83,6 +84,7 @@ export function DualIntField({
             middlewares: { flip: true, shift: true },
           }}
           onDropdownOpen={() => setOpened(true)}
+          onSearchChange={setQuery}
           onChange={(next) => {
             if (next) onChange(next);
           }}

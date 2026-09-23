@@ -314,6 +314,7 @@ export function HearingFlow({
               optionSuffix="年"
               value={draft.birthYear}
               error={errors.birthYear}
+              pickerCenter={new Date().getFullYear()}
               onChange={(birthYear) => patch("birthYear", birthYear)}
             />
             <DualIntField

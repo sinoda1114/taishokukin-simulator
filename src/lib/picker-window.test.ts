@@ -15,10 +15,9 @@ describe("pickerWindow", () => {
     expect(window.max).toBeLessThan(2200);
   });
 
-  it("centers a year range on the current year when nothing is typed", () => {
-    const window = pickerWindow(1900, 2200, null, 2026);
-    expect(window.min).toBeLessThanOrEqual(2026);
-    expect(window.max).toBeGreaterThanOrEqual(2026);
-    expect(window.max - window.min + 1).toBe(MAX_PICKER_OPTIONS);
+  it("keeps retirement ages in view when the legal min is above 20", () => {
+    const window = pickerWindow(21, 241, 65);
+    expect(window.min).toBeLessThanOrEqual(60);
+    expect(window.max).toBeGreaterThanOrEqual(75);
   });
 });
