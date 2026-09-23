@@ -1,4 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { ColorSchemeScript, mantineHtmlProps } from "@mantine/core";
+import { Providers } from "@/components/Providers";
+import { SiteFrame } from "@/components/SiteFrame";
+import "@mantine/core/styles.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,31 +17,21 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#ebe7e0",
+  colorScheme: "light",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ja">
+    <html lang="ja" {...mantineHtmlProps}>
+      <head>
+        <ColorSchemeScript defaultColorScheme="light" forceColorScheme="light" />
+      </head>
       <body>
-        <div className="wrap">
-          <header className="site">
-            <h1>退職金シミュレーター</h1>
-            <p className="lede">
-              会社退職金と iDeCo / 企業型DC の一時金を、いつ・どの順で受けると税がどう変わるかを試算します。
-            </p>
-            <p className="disclaimer">
-              これは試算であり、税務助言ではありません。申告の要否や個別事情は税理士・税務署に確認してください。
-              計算は「退職所得の受給に関する申告書」提出済みの源泉徴収を前提にしています。
-            </p>
-          </header>
-          {children}
-          <footer className="site">
-            <p>
-              公開情報に基づく概算です。特定役員・短期退職手当等、年金受取、社会保険料は未対応です。
-            </p>
-            <p>
-              <a href="/privacy">プライバシー</a>
-            </p>
-          </footer>
-        </div>
+        <Providers>
+          <SiteFrame>{children}</SiteFrame>
+        </Providers>
       </body>
     </html>
   );

@@ -93,6 +93,14 @@ export const RULE_MODE_LABELS: Record<RuleMode, string> = {
   post_2026: "改正後固定（9年）",
 };
 
+export function isBenefitKind(value: string): value is BenefitKind {
+  return Object.hasOwn(KIND_LABELS, value);
+}
+
+export function isRuleMode(value: string): value is RuleMode {
+  return Object.hasOwn(RULE_MODE_LABELS, value);
+}
+
 export function formatYen(yen: number | null): string {
   if (yen === null) return "—";
   return `${yen.toLocaleString("ja-JP")}円`;
