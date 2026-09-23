@@ -27,7 +27,8 @@ describe("hearing steps", () => {
 describe("hearing mapping", () => {
   it("round-trips the sample input used for skip", () => {
     const answers = answersFromInput(defaultInput);
-    expect(answers.hasDc).toBe(true);
+    expect(answers.companyReceiptAge).toBe(65);
+    expect(answers.dcReceiptAge).toBe(65);
     expect(answers.hasExtra).toBe(false);
     expect(answers.goal).toBe("sequence");
     const next = inputFromAnswers(answers);
@@ -41,11 +42,11 @@ describe("hearing mapping", () => {
       birthMonth: 4,
       companyIncomeYen: 20_000_000,
       companyServiceYears: 30,
-      companyReceiptYear: 2030,
+      companyReceiptAge: 65,
       hasDc: false,
       dcIncomeYen: 10_000_000,
       dcServiceYears: 20,
-      dcReceiptYear: 2031,
+      dcReceiptAge: 66,
       hasExtra: false,
       goal: "simultaneous",
     });
@@ -59,11 +60,11 @@ describe("hearing mapping", () => {
       birthMonth: 4,
       companyIncomeYen: 20_000_000,
       companyServiceYears: 30,
-      companyReceiptYear: 2030,
+      companyReceiptAge: 65,
       hasDc: true,
       dcIncomeYen: 10_000_000,
       dcServiceYears: 20,
-      dcReceiptYear: 2034,
+      dcReceiptAge: 69,
       hasExtra: false,
       goal: "simultaneous",
     });
