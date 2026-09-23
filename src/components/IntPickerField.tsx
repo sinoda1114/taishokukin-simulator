@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { CloseButton, Select, Text } from "@mantine/core";
+import { CloseButton, Combobox, Select, Text } from "@mantine/core";
 import { digitsFromPickerSearch, prefixCenter } from "@/lib/picker-search";
 import { pickerWindow } from "@/lib/picker-window";
 
@@ -78,15 +78,18 @@ export function IntPickerField({
           return options.filter((item) => "value" in item && item.value.startsWith(digits));
         }}
         rightSection={
-          selected !== null && !disabled ? (
-            <CloseButton
-              aria-label={`${label}を消す`}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => onChange("")}
-            />
-          ) : undefined
+          <span className="picker-field-actions">
+            {selected !== null && !disabled ? (
+              <CloseButton
+                aria-label={`${label}を消す`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onChange("")}
+              />
+            ) : null}
+            <Combobox.Chevron />
+          </span>
         }
-        rightSectionPointerEvents={selected !== null && !disabled ? "all" : undefined}
+        rightSectionWidth={selected !== null && !disabled ? 56 : 28}
         comboboxProps={{
           withinPortal: true,
           position: "bottom-start",
