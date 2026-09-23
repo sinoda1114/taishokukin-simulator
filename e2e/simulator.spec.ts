@@ -61,7 +61,7 @@ test("hearing answers land on the current results screen", async ({ page }) => {
   await expect(page.getByText("合計税額")).toBeVisible();
   await expect(page.getByText("1,861,869円").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "同時 / 退職金先 / iDeCo先" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "生年" })).toHaveValue("1965");
+  await expect(page.getByRole("textbox", { name: "生年", exact: true })).toHaveValue("1965");
   await expect(page.getByLabel("見込み受取額（円）").first()).toHaveValue("20,000,000");
   await expect(page.getByRole("button", { name: "共有 URL を作る" })).toBeVisible();
   await page.getByRole("button", { name: "ヒアリングに戻る" }).click();
@@ -179,11 +179,11 @@ test("primary controls keep a visible focus ring", async ({ page }) => {
 test("hearing keeps text and picker, and blocks empty age", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "次へ" }).click();
-  await expect(page.getByRole("textbox", { name: "勤続年数" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "勤続年数の選択" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "受取年齢" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "受取年齢の選択" })).toBeVisible();
-  await page.getByRole("textbox", { name: "受取年齢" }).fill("");
+  await expect(page.getByRole("textbox", { name: "勤続年数", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "勤続年数の選択" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "受取年齢", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "受取年齢の選択" })).toBeVisible();
+  await page.getByRole("textbox", { name: "受取年齢", exact: true }).fill("");
   await page.getByRole("button", { name: "次へ" }).click();
   await expect(page.getByText("受取年齢を入れてください")).toBeVisible();
   await expect(page.getByRole("heading", { name: "iDeCo か企業型 DC の一時金はありますか" })).toHaveCount(0);
@@ -223,7 +223,9 @@ test("375px bars and search line stay on screen", async ({ page }) => {
 test("375px year picker stays in the viewport", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
-  await page.getByRole("combobox", { name: "生年の選択" }).click();
+  const picker = page.getByRole("textbox", { name: "生年の選択" });
+  await picker.click();
+  await picker.fill("1965");
   const option = page.getByRole("option", { name: "1965年" });
   await expect(option).toBeVisible();
   const box = await option.boundingBox();
