@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Select, Text } from "@mantine/core";
+import { CloseButton, Select, Text } from "@mantine/core";
 import { pickerWindow } from "@/lib/picker-window";
 
 type Props = {
@@ -44,7 +44,7 @@ export function IntPickerField({
 
   const data = useMemo(() => {
     if (!opened) return selected === null ? [] : [option(selected, optionSuffix)];
-    const center = selected ?? typed ?? pickerCenter ?? Math.round((min + max) / 2);
+    const center = typed ?? selected ?? pickerCenter ?? Math.round((min + max) / 2);
     const window = pickerWindow(min, max, center);
     const options: { value: string; label: string }[] = [];
     for (let n = window.min; n <= window.max; n += 1) {
@@ -60,12 +60,21 @@ export function IntPickerField({
         data={data}
         value={selected === null ? null : String(selected)}
         searchable
-        clearable
+        allowDeselect={false}
         disabled={disabled}
         aria-invalid={Boolean(error)}
-        clearButtonProps={{ "aria-label": `${label}を消す` }}
         nothingFoundMessage="該当する値がありません"
         maxDropdownHeight={240}
+        rightSection={
+          selected !== null && !disabled ? (
+            <CloseButton
+              aria-label={`${label}を消す`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onChange("")}
+            />
+          ) : undefined
+        }
+        rightSectionPointerEvents={selected !== null && !disabled ? "all" : undefined}
         comboboxProps={{
           withinPortal: true,
           position: "bottom-start",

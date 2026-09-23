@@ -242,7 +242,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               }}
             />
             <Text size="sm" c="dimmed">
-              勤続年数は、受取年の12月から遡った期間です。探索と3行比較では受取年だけを動かします。
+              簡易の勤続年数は、受取年の12月から遡った期間です。探索と3行比較では受取年だけを動かします。
             </Text>
             {input.benefits.map((benefit, index) => (
               <BenefitEditor

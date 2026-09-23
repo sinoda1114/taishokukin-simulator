@@ -184,7 +184,7 @@ test("hearing uses pickers only and blocks empty age", async ({ page }) => {
   await expect(page.getByLabel("見込み受取額（円）")).toBeVisible();
   await page.getByRole("button", { name: "受取年齢を消す" }).click();
   await page.getByRole("button", { name: "次へ" }).click();
-  await expect(page.getByText("受取年齢を入れてください")).toBeVisible();
+  await expect(page.getByText("受取年齢を入れてください", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "iDeCo か企業型 DC の一時金はありますか" })).toHaveCount(0);
 });
 
@@ -231,5 +231,11 @@ test("375px year picker stays in the viewport", async ({ page }) => {
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(376);
+  await picker.fill("2010");
+  const far = page.getByRole("option", { name: "2010年" });
+  await expect(far).toBeVisible();
+  const farBox = await far.boundingBox();
+  expect(farBox).not.toBeNull();
+  expect(farBox!.x + farBox!.width).toBeLessThanOrEqual(376);
 });
 
