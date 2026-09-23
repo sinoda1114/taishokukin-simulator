@@ -96,6 +96,38 @@ describe("hearing mapping", () => {
     expect(input.benefits[2]).toMatchObject({ id: "kept", incomeYen: 3_000_000 });
   });
 
+  it("keeps a different DC year when the user did not ask for simultaneous", () => {
+    const previous = {
+      ...defaultInput,
+      benefits: defaultInput.benefits.map((benefit) =>
+        benefit.kind === "dc"
+          ? { ...benefit, receiptYear: 2035, optimizeReceiptYear: false }
+          : benefit,
+      ),
+    };
+    const answers = answersFromInput(previous);
+    expect(answers.goal).toBe("sequence");
+    const next = inputFromAnswers(answers, previous);
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.receiptYear).toBe(2035);
+    expect(simulate(parseSimulationInput(next)).totalTaxYen).toBe(
+      simulate(parseSimulationInput(previous)).totalTaxYen,
+    );
+  });
+
+  it("adds an extra stub that does not change tax", () => {
+    const previous = inputFromAnswers({
+      ...answersFromInput(defaultInput),
+      hasDc: false,
+      hasExtra: false,
+    });
+    const next = inputFromAnswers({ ...answersFromInput(previous), hasExtra: true }, previous);
+    expect(next.benefits.map((b) => b.kind)).toEqual(["company", "other"]);
+    expect(next.benefits[1]?.incomeYen).toBe(0);
+    expect(simulate(parseSimulationInput(next)).totalTaxYen).toBe(
+      simulate(parseSimulationInput(previous)).totalTaxYen,
+    );
+  });
+
   it("keeps rule mode and disability flags from the previous input", () => {
     const previous = {
       ...defaultInput,
