@@ -23,34 +23,13 @@ import {
   type SimulationInput,
 } from "@/engine";
 import { isRuleMode, RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
+import { defaultInput } from "@/lib/default-input";
+import { HearingFlow } from "./HearingFlow";
 import { BenefitEditor } from "./BenefitEditor";
 import { IntInput } from "./IntInput";
 import { ResultPanel } from "./ResultPanel";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
-
-const defaultInput: SimulationInput = {
-  schemaVersion: 1,
-  birthYearMonth: { year: 1965, month: 4 },
-  ruleMode: "auto",
-  benefits: [
-    {
-      id: "company",
-      kind: "company",
-      incomeYen: 20_000_000,
-      serviceYears: 30,
-      receiptYear: 2030,
-    },
-    {
-      id: "dc",
-      kind: "dc",
-      incomeYen: 10_000_000,
-      serviceYears: 20,
-      receiptYear: 2030,
-      optimizeReceiptYear: true,
-    },
-  ],
-};
 
 const RULE_OPTIONS = Object.entries(RULE_MODE_LABELS).map(([value, label]) => ({
   value,
@@ -70,6 +49,9 @@ type Props = {
 
 export function SimulatorApp({ initialInput, shareToken }: Props) {
   const [input, setInput] = useState<SimulationInput>(initialInput ?? defaultInput);
+  const [phase, setPhase] = useState<"hearing" | "results">(
+    initialInput || shareToken ? "results" : "hearing",
+  );
   const [saveUrl, setSaveUrl] = useState(shareToken ? `/s/${shareToken}` : "");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -149,6 +131,19 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
     }
   }
 
+  if (phase === "hearing") {
+    return (
+      <HearingFlow
+        initial={input}
+        onSkip={() => setPhase("results")}
+        onComplete={(next) => {
+          setInput(next);
+          setPhase("results");
+        }}
+      />
+    );
+  }
+
   return (
     <Grid id="main" gutter={{ base: "lg", md: "xl" }} component="main" align="start">
       <Grid.Col span={{ base: 12, md: 5 }}>
@@ -157,9 +152,14 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
             <Anchor href="#results" className="jump-results" size="sm">
               結果を見る
             </Anchor>
-            <Title order={2} id="input-heading">
-              入力
-            </Title>
+            <Group justify="space-between" align="flex-end" wrap="wrap" gap="sm">
+              <Title order={2} id="input-heading">
+                入力
+              </Title>
+              <button type="button" className="text-link" onClick={() => setPhase("hearing")}>
+                ヒアリングに戻る
+              </button>
+            </Group>
             <Group grow preventGrowOverflow={false} wrap="wrap">
               <IntInput
                 label="生年"
