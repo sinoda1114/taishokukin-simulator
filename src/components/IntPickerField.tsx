@@ -109,6 +109,9 @@ export function IntPickerField({
           setQuery("");
         }}
         onSearchChange={(raw) => setQuery(digitsFromPickerSearch(raw, selectedLabel))}
+        onOptionSubmit={() => {
+          pickedRef.current = true;
+        }}
         onChange={(next) => {
           pickedRef.current = true;
           onChange(next ?? "");

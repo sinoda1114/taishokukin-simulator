@@ -264,6 +264,19 @@ test("choosing 11月 keeps 11, not the typed 1", async ({ page }) => {
   await expect(month).toHaveValue("11月");
 });
 
+test("re-picking the current month after a prefix keeps the month", async ({ page }) => {
+  await page.goto("/");
+  const month = page.getByRole("textbox", { name: "生月" });
+  await month.click();
+  await month.fill("11");
+  await page.getByRole("option", { name: "11月" }).click();
+  await expect(month).toHaveValue("11月");
+  await month.click();
+  await month.pressSequentially("1");
+  await page.getByRole("option", { name: "11月" }).click();
+  await expect(month).toHaveValue("11月");
+});
+
 test("typed year commits when the next step is opened", async ({ page }) => {
   await page.goto("/");
   const picker = page.getByRole("textbox", { name: "生年" });
