@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CloseButton, Select, Text } from "@mantine/core";
 import { digitsFromPickerSearch, prefixCenter } from "@/lib/picker-search";
 import { pickerWindow } from "@/lib/picker-window";
@@ -38,6 +38,7 @@ export function IntPickerField({
 }: Props) {
   const [opened, setOpened] = useState(false);
   const [query, setQuery] = useState("");
+  const pickedRef = useRef(false);
   const trimmed = value.trim();
   const selected =
     /^\d+$/.test(trimmed) && Number(trimmed) >= min && Number(trimmed) <= max ? Number(trimmed) : null;
@@ -92,19 +93,26 @@ export function IntPickerField({
           middlewares: { flip: true, shift: true },
         }}
         onDropdownOpen={() => {
+          pickedRef.current = false;
           setOpened(true);
           setQuery("");
         }}
         onDropdownClose={() => {
-          const typed = Number(typedDigits);
-          if (typedDigits !== "" && Number.isInteger(typed) && typed >= min && typed <= max) {
-            onChange(String(typed));
+          if (!pickedRef.current) {
+            const typed = Number(typedDigits);
+            if (typedDigits !== "" && Number.isInteger(typed) && typed >= min && typed <= max) {
+              onChange(String(typed));
+            }
           }
+          pickedRef.current = false;
           setOpened(false);
           setQuery("");
         }}
         onSearchChange={(raw) => setQuery(digitsFromPickerSearch(raw, selectedLabel))}
-        onChange={(next) => onChange(next ?? "")}
+        onChange={(next) => {
+          pickedRef.current = true;
+          onChange(next ?? "");
+        }}
       />
       {error ? (
         <Text className="field-error" size="sm" mt={6} role="alert">
