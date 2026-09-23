@@ -239,3 +239,28 @@ test("375px year picker stays in the viewport", async ({ page }) => {
   expect(farBox!.x + farBox!.width).toBeLessThanOrEqual(376);
 });
 
+test("typing into a filled year picker jumps to that year", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/");
+  const picker = page.getByRole("textbox", { name: "生年" });
+  await expect(picker).toHaveValue("1965年");
+  await picker.click();
+  await picker.pressSequentially("2010");
+  const far = page.getByRole("option", { name: "2010年" });
+  await expect(far).toBeVisible();
+  const farBox = await far.boundingBox();
+  expect(farBox).not.toBeNull();
+  expect(farBox!.x + farBox!.width).toBeLessThanOrEqual(376);
+  await picker.press("Enter");
+  await expect(picker).toHaveValue("2010年");
+});
+
+test("partial year digits open the 2000s, not 1920", async ({ page }) => {
+  await page.goto("/");
+  const picker = page.getByRole("textbox", { name: "生年" });
+  await picker.click();
+  await picker.fill("20");
+  await expect(page.getByRole("option", { name: "2000年" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "1920年" })).toHaveCount(0);
+});
+

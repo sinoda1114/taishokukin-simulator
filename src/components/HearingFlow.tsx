@@ -34,7 +34,7 @@ const STEP_COPY: Record<HearingStepId, { title: string; lede: string }> = {
   },
   company: {
     title: "会社の退職金について教えてください",
-    lede: "見込み受取額、勤続年数、受取年齢を入れてください。受取年は生年月から出します。",
+    lede: "見込み受取額を入れ、勤続年数と受取年齢を選んでください。受取年は生年月から出します。",
   },
   hasDc: {
     title: "iDeCo か企業型 DC の一時金はありますか",
@@ -42,7 +42,7 @@ const STEP_COPY: Record<HearingStepId, { title: string; lede: string }> = {
   },
   dc: {
     title: "iDeCo か企業型 DC の一時金について教えてください",
-    lede: "見込み受取額、拠出年数、受取年齢を入れてください。拠出年数は勤続年数として扱います。受取年は生年月から出します。",
+    lede: "見込み受取額を入れ、拠出年数と受取年齢を選んでください。拠出年数は勤続年数として扱います。受取年は生年月から出します。",
   },
   hasExtra: {
     title: "ほかに退職手当はありますか",

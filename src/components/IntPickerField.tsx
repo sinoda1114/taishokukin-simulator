@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CloseButton, Select, Text } from "@mantine/core";
+import { digitsFromPickerSearch, prefixCenter } from "@/lib/picker-search";
 import { pickerWindow } from "@/lib/picker-window";
 
 type Props = {
@@ -40,18 +41,20 @@ export function IntPickerField({
   const trimmed = value.trim();
   const selected =
     /^\d+$/.test(trimmed) && Number(trimmed) >= min && Number(trimmed) <= max ? Number(trimmed) : null;
-  const typed = /^\d+$/.test(query.trim()) ? Number(query.trim()) : null;
+  const selectedLabel = selected === null ? null : optionLabel(selected, optionSuffix);
+  const typedDigits = digitsFromPickerSearch(query, selectedLabel);
 
   const data = useMemo(() => {
     if (!opened) return selected === null ? [] : [option(selected, optionSuffix)];
-    const center = typed ?? selected ?? pickerCenter ?? Math.round((min + max) / 2);
+    const fallback = selected ?? pickerCenter ?? Math.round((min + max) / 2);
+    const center = prefixCenter(typedDigits, min, max, fallback);
     const window = pickerWindow(min, max, center);
     const options: { value: string; label: string }[] = [];
     for (let n = window.min; n <= window.max; n += 1) {
       options.push(option(n, optionSuffix));
     }
     return options;
-  }, [opened, min, max, optionSuffix, selected, typed, pickerCenter]);
+  }, [opened, min, max, optionSuffix, selected, typedDigits, pickerCenter]);
 
   return (
     <div className="picker-field">
@@ -65,6 +68,14 @@ export function IntPickerField({
         aria-invalid={Boolean(error)}
         nothingFoundMessage="該当する値がありません"
         maxDropdownHeight={240}
+        searchValue={opened ? query : undefined}
+        selectFirstOptionOnChange={typedDigits.length > 0}
+        autoSelectOnBlur
+        filter={({ options, search }) => {
+          const digits = digitsFromPickerSearch(search, selectedLabel);
+          if (!digits) return options;
+          return options.filter((item) => "value" in item && item.value.startsWith(digits));
+        }}
         rightSection={
           selected !== null && !disabled ? (
             <CloseButton
@@ -80,8 +91,15 @@ export function IntPickerField({
           position: "bottom-start",
           middlewares: { flip: true, shift: true },
         }}
-        onDropdownOpen={() => setOpened(true)}
-        onSearchChange={setQuery}
+        onDropdownOpen={() => {
+          setOpened(true);
+          setQuery("");
+        }}
+        onDropdownClose={() => {
+          setOpened(false);
+          setQuery("");
+        }}
+        onSearchChange={(raw) => setQuery(digitsFromPickerSearch(raw, selectedLabel))}
         onChange={(next) => onChange(next ?? "")}
       />
       {error ? (

@@ -356,8 +356,9 @@ a {
 .hearing-title {
   font-family: var(--display-font);
   font-weight: 600;
-  overflow-wrap: anywhere;
-  word-break: keep-all;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: strict;
 }
 
 .choice-row {
