@@ -63,13 +63,23 @@ export function answersFromInput(input: SimulationInput): HearingAnswers {
   };
 }
 
+function withoutIntervals(benefit?: BenefitInput): Omit<BenefitInput, "intervals"> | Record<string, never> {
+  if (!benefit) return {};
+  const { intervals: _drop, ...rest } = benefit;
+  return rest;
+}
+
 export function inputFromAnswers(
   answers: HearingAnswers,
-  previousBenefits: BenefitInput[] = [],
+  previous: SimulationInput = defaultInput,
 ): SimulationInput {
+  const previousBenefits = previous.benefits;
+  const prevCompany = previousBenefits.find((benefit) => benefit.kind === "company");
+  const prevDc = previousBenefits.find((benefit) => benefit.kind === "dc");
   const benefits: BenefitInput[] = [
     {
-      id: "company",
+      ...withoutIntervals(prevCompany),
+      id: prevCompany?.id ?? "company",
       kind: "company",
       incomeYen: answers.companyIncomeYen,
       serviceYears: Math.max(1, answers.companyServiceYears),
@@ -80,7 +90,8 @@ export function inputFromAnswers(
     const receiptYear =
       answers.goal === "simultaneous" ? answers.companyReceiptYear : answers.dcReceiptYear;
     benefits.push({
-      id: "dc",
+      ...withoutIntervals(prevDc),
+      id: prevDc?.id ?? "dc",
       kind: "dc",
       incomeYen: answers.dcIncomeYen,
       serviceYears: Math.max(1, answers.dcServiceYears),
@@ -105,9 +116,9 @@ export function inputFromAnswers(
     }
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: previous.schemaVersion,
     birthYearMonth: { year: answers.birthYear, month: answers.birthMonth },
-    ruleMode: "auto",
+    ruleMode: previous.ruleMode,
     benefits,
   };
 }

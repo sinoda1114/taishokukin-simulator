@@ -90,9 +90,25 @@ describe("hearing mapping", () => {
     };
     const input = inputFromAnswers(
       { ...answersFromInput(defaultInput), hasExtra: true },
-      [...defaultInput.benefits, extra],
+      { ...defaultInput, benefits: [...defaultInput.benefits, extra] },
     );
     expect(input.benefits.map((b) => b.kind)).toEqual(["company", "dc", "other"]);
     expect(input.benefits[2]).toMatchObject({ id: "kept", incomeYen: 3_000_000 });
+  });
+
+  it("keeps rule mode and disability flags from the previous input", () => {
+    const previous = {
+      ...defaultInput,
+      ruleMode: "pre_2026" as const,
+      benefits: defaultInput.benefits.map((benefit) =>
+        benefit.kind === "company" ? { ...benefit, disability: true } : benefit,
+      ),
+    };
+    const next = inputFromAnswers(answersFromInput(previous), previous);
+    expect(next.ruleMode).toBe("pre_2026");
+    expect(next.benefits.find((benefit) => benefit.kind === "company")?.disability).toBe(true);
+    expect(simulate(parseSimulationInput(previous)).totalTaxYen).toBe(
+      simulate(parseSimulationInput(next)).totalTaxYen,
+    );
   });
 });
