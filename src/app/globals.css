@@ -45,6 +45,14 @@ body {
   outline-offset: 2px;
 }
 
+.mantine-Button-root:focus-visible,
+.mantine-Input-input:focus-visible,
+.choice:focus-visible,
+.text-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 button,
 a,
 input,
@@ -273,12 +281,6 @@ a {
   box-shadow: inset 0 0 0 1px var(--indigo);
   background: var(--indigo-wash);
   color: var(--indigo);
-}
-
-.choice:focus-visible,
-.text-link:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 .text-link {

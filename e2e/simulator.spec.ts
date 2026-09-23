@@ -159,7 +159,9 @@ test("375px DC benefit header stays in the viewport", async ({ page }) => {
 test("primary controls keep a visible focus ring", async ({ page }) => {
   await startFromInputs(page);
   const share = page.getByRole("button", { name: "共有 URL を作る" });
-  await share.focus();
+  await share.evaluate((el) => {
+    (el as HTMLElement).focus({ focusVisible: true });
+  });
   const ring = await share.evaluate((el) => {
     const style = getComputedStyle(el);
     return {

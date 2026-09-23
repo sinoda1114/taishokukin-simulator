@@ -63,7 +63,10 @@ export function answersFromInput(input: SimulationInput): HearingAnswers {
   };
 }
 
-export function inputFromAnswers(answers: HearingAnswers): SimulationInput {
+export function inputFromAnswers(
+  answers: HearingAnswers,
+  previousBenefits: BenefitInput[] = [],
+): SimulationInput {
   const benefits: BenefitInput[] = [
     {
       id: "company",
@@ -86,13 +89,20 @@ export function inputFromAnswers(answers: HearingAnswers): SimulationInput {
     });
   }
   if (answers.hasExtra) {
-    benefits.push({
-      id: "extra",
-      kind: "other",
-      incomeYen: 0,
-      serviceYears: 20,
-      receiptYear: answers.companyReceiptYear,
-    });
+    const extras = previousBenefits
+      .filter((benefit) => benefit.kind !== "company" && benefit.kind !== "dc")
+      .map((benefit) => ({ ...benefit }));
+    if (extras.length > 0) {
+      benefits.push(...extras.slice(0, 6 - benefits.length));
+    } else {
+      benefits.push({
+        id: "extra",
+        kind: "other",
+        incomeYen: 0,
+        serviceYears: 20,
+        receiptYear: answers.companyReceiptYear,
+      });
+    }
   }
   return {
     schemaVersion: 1,

@@ -79,4 +79,20 @@ describe("hearing mapping", () => {
     });
     expect(input.benefits.map((b) => b.kind)).toEqual(["company", "dc", "other"]);
   });
+
+  it("keeps edited extra benefits when returning from the form", () => {
+    const extra = {
+      id: "kept",
+      kind: "other" as const,
+      incomeYen: 3_000_000,
+      serviceYears: 10,
+      receiptYear: 2031,
+    };
+    const input = inputFromAnswers(
+      { ...answersFromInput(defaultInput), hasExtra: true },
+      [...defaultInput.benefits, extra],
+    );
+    expect(input.benefits.map((b) => b.kind)).toEqual(["company", "dc", "other"]);
+    expect(input.benefits[2]).toMatchObject({ id: "kept", incomeYen: 3_000_000 });
+  });
 });

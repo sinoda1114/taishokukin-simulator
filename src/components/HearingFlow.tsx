@@ -81,7 +81,7 @@ export function HearingFlow({
   function goNext() {
     const next = nextHearingStep(step, answers.hasDc);
     if (next === "done") {
-      onComplete(inputFromAnswers(answers));
+      onComplete(inputFromAnswers(answers, initial.benefits));
       return;
     }
     setStep(next);
