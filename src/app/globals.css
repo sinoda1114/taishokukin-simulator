@@ -230,15 +230,24 @@ a {
   word-break: break-all;
 }
 
-.dual-field {
+.picker-field {
   min-width: 0;
   flex: 1 1 12rem;
 }
 
-.dual-pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
+.mantine-Stack-root > .picker-field {
+  flex: 0 1 auto;
+}
+
+.picker-field-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.picker-field-actions .mantine-CloseButton-root {
+  pointer-events: auto;
 }
 
 .field-error {
@@ -335,8 +344,8 @@ a {
 }
 
 @media (max-width: 47.99em) {
-  .dual-pair {
-    grid-template-columns: 1fr;
+  .picker-field {
+    flex-basis: 100%;
   }
 }
 
@@ -362,8 +371,9 @@ a {
 .hearing-title {
   font-family: var(--display-font);
   font-weight: 600;
-  overflow-wrap: anywhere;
-  word-break: keep-all;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: strict;
 }
 
 .choice-row {

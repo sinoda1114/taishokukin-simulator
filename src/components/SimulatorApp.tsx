@@ -30,7 +30,7 @@ import { FIELD_RANGES } from "@/lib/field-ranges";
 import { parseBirthYear, parseMonth } from "@/lib/field-validation";
 import { HearingFlow } from "./HearingFlow";
 import { BenefitEditor } from "./BenefitEditor";
-import { DualIntField } from "./DualIntField";
+import { IntPickerField } from "./IntPickerField";
 import { ResultPanel } from "./ResultPanel";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -199,11 +199,11 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 入力
               </Title>
               <button type="button" className="text-link" onClick={() => setPhase("hearing")}>
-                ヒアリングに戻る
+                質問に戻る
               </button>
             </Group>
             <Group grow preventGrowOverflow={false} wrap="wrap">
-              <DualIntField
+              <IntPickerField
                 label="生年"
                 min={FIELD_RANGES.birthYear.min}
                 max={FIELD_RANGES.birthYear.max}
@@ -216,7 +216,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                   commitBirth(raw, birthMonthRaw);
                 }}
               />
-              <DualIntField
+              <IntPickerField
                 label="生月"
                 min={FIELD_RANGES.month.min}
                 max={FIELD_RANGES.month.max}
@@ -230,7 +230,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               />
             </Group>
             <Text size="sm" c="dimmed">
-              受取は年齢で入れます。受取年は、その年齢の誕生日を迎える暦年です。
+              受取年齢を選ぶと、受取年はその年齢の誕生日を迎える暦年になります。
             </Text>
             <Select
               label="適用ルール"
@@ -242,7 +242,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               }}
             />
             <Text size="sm" c="dimmed">
-              簡易の勤続は、受取年の12月から年数を遡った期間です。探索と3行比較は受取年だけを動かします。
+              簡易の勤続年数は、受取年の12月から遡った期間です。探索と3行比較では受取年だけを動かします。
             </Text>
             {input.benefits.map((benefit, index) => (
               <BenefitEditor
@@ -266,7 +266,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 onClick={addBenefit}
                 disabled={input.benefits.length >= 6}
               >
-                手当を追加（最大6）
+                手当を追加する（最大6件）
               </Button>
               <Button type="button" onClick={onSave} loading={saving} disabled={!birthValid || !benefitsValid}>
                 共有 URL を作る

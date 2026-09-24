@@ -98,7 +98,7 @@ export function ResultPanel({
         {result.warnings.length > 0 ? (
           <Accordion mt="sm" variant="default">
             <Accordion.Item value="warnings">
-              <Accordion.Control>注意 {result.warnings.length}件</Accordion.Control>
+              <Accordion.Control>注意（{result.warnings.length}件）</Accordion.Control>
               <Accordion.Panel>
                 {result.warnings.map((w) => (
                   <Text key={w.code} size="sm" c="dimmed">
@@ -115,7 +115,7 @@ export function ResultPanel({
         <div>
           <Title order={2}>同時 / 退職金先 / iDeCo先</Title>
           <Text size="sm" c="dimmed" mt={4} mb="sm">
-            会社1本と DC1本のときだけ出します。差額の基準は会社の受取年での同時受取です。
+            会社の退職金1本と DC の一時金1本のときだけ出します。差額の基準は、会社の受取年での同時受取です。
           </Text>
           <PatternBars
             rows={cards.map(({ pattern, tax, isBest }) => ({

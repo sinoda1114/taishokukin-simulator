@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
 import type { SimulationInput } from "@/engine";
 import { IntInput } from "./IntInput";
-import { DualIntField } from "./DualIntField";
+import { IntPickerField } from "./IntPickerField";
 import { ReceiptAgeField } from "./ReceiptAgeField";
 import { FIELD_RANGES } from "@/lib/field-ranges";
 import { toInt } from "@/lib/ui-numbers";
@@ -29,28 +29,28 @@ import {
 
 const STEP_COPY: Record<HearingStepId, { title: string; lede: string }> = {
   birth: {
-    title: "生年と生月はいつですか",
+    title: "生年月を選んでください",
     lede: "受取年は、その年齢の誕生日を迎える暦年です。iDeCo の 60歳も同じです。",
   },
   company: {
-    title: "会社の退職金は、いくらで、何年勤めて、何歳で受けますか",
-    lede: "見込みの額と勤続年数、受取年齢です。受取年は生年月から出します。",
+    title: "会社の退職金について教えてください",
+    lede: "見込み受取額を入れ、勤続年数と受取年齢を選んでください。受取年は生年月から出します。",
   },
   hasDc: {
     title: "iDeCo か企業型 DC の一時金はありますか",
-    lede: "あると、受取の順で税が変わります。",
+    lede: "あると、受け取る順で税額が変わります。",
   },
   dc: {
-    title: "その額、拠出年数、受取年齢は",
-    lede: "拠出年数が勤続年数になります。受取年は生年月から出します。",
+    title: "iDeCo か企業型 DC の一時金について教えてください",
+    lede: "見込み受取額を入れ、拠出年数と受取年齢を選んでください。拠出年数は勤続年数として扱います。受取年は生年月から出します。",
   },
   hasExtra: {
     title: "ほかに退職手当はありますか",
-    lede: "ある場合は、次の入力欄で額と年を直せます。",
+    lede: "ある場合は、次の入力画面で額と受取年を直せます。",
   },
   goal: {
-    title: "同時に受け取る場合と、順を変える場合、どちらを見ますか",
-    lede: "順を変える比較は、会社1本と DC1本のときだけ出ます。",
+    title: "受け取る順の比較を見ますか",
+    lede: "会社の退職金1本と DC の一時金1本のときだけ、順を変えた比較が出ます。",
   },
 };
 
@@ -307,7 +307,7 @@ export function HearingFlow({
 
         {step === "birth" ? (
           <Group grow preventGrowOverflow={false} wrap="wrap">
-            <DualIntField
+            <IntPickerField
               label="生年"
               min={FIELD_RANGES.birthYear.min}
               max={FIELD_RANGES.birthYear.max}
@@ -317,7 +317,7 @@ export function HearingFlow({
               pickerCenter={new Date().getFullYear()}
               onChange={(birthYear) => patch("birthYear", birthYear)}
             />
-            <DualIntField
+            <IntPickerField
               label="生月"
               min={FIELD_RANGES.month.min}
               max={FIELD_RANGES.month.max}
@@ -340,7 +340,7 @@ export function HearingFlow({
               onEmpty={() => patch("companyIncomeYen", "")}
               onValue={(companyIncomeYen) => patch("companyIncomeYen", String(companyIncomeYen))}
             />
-            <DualIntField
+            <IntPickerField
               label="勤続年数"
               min={FIELD_RANGES.serviceYears.min}
               max={FIELD_RANGES.serviceYears.max}
@@ -380,7 +380,7 @@ export function HearingFlow({
               onEmpty={() => patch("dcIncomeYen", "")}
               onValue={(dcIncomeYen) => patch("dcIncomeYen", String(dcIncomeYen))}
             />
-            <DualIntField
+            <IntPickerField
               label="拠出年数"
               min={FIELD_RANGES.serviceYears.min}
               max={FIELD_RANGES.serviceYears.max}
@@ -429,7 +429,7 @@ export function HearingFlow({
           </Button>
         </Group>
         <button type="button" className="text-link" onClick={onSkip}>
-          入力欄から始める
+          自分で入力する
         </button>
       </Stack>
     </Paper>

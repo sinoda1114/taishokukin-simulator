@@ -1,7 +1,7 @@
 "use client";
 
 import { Text } from "@mantine/core";
-import { DualIntField } from "./DualIntField";
+import { IntPickerField } from "./IntPickerField";
 import { FIELD_RANGES, receiptAgeRange } from "@/lib/field-ranges";
 import { receiptYearFromAge } from "@/lib/field-validation";
 
@@ -25,7 +25,7 @@ export function ReceiptAgeField({ value, birthYear, onChange, error }: Props) {
 
   return (
     <div>
-      <DualIntField
+      <IntPickerField
         label="受取年齢"
         value={value}
         min={range.min}
@@ -38,7 +38,7 @@ export function ReceiptAgeField({ value, birthYear, onChange, error }: Props) {
       />
       {birthYear === null ? (
         <Text size="sm" mt={6} c="var(--ink-muted)">
-          生年月を先に入れると、受取年が出ます。
+          生年月を先に選ぶと、受取年が出ます。
         </Text>
       ) : year !== null ? (
         <Text size="sm" mt={6} className="derived-year">
