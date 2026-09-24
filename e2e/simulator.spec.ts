@@ -185,6 +185,9 @@ test("hearing uses pickers only and blocks empty age", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "受取年齢の選択" })).toHaveCount(0);
   const serviceField = page.locator(".picker-field").filter({ has: page.getByText("勤続年数", { exact: true }) });
   await expect(serviceField.locator("input:visible")).toHaveCount(1);
+  const serviceBox = await serviceField.boundingBox();
+  expect(serviceBox).not.toBeNull();
+  expect(serviceBox!.height).toBeLessThan(100);
   await expect(page.getByLabel("見込み受取額（円）")).toBeVisible();
   await page.getByRole("button", { name: "受取年齢を消す" }).click();
   await page.getByRole("button", { name: "次へ" }).click();

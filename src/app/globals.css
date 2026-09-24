@@ -235,6 +235,10 @@ a {
   flex: 1 1 12rem;
 }
 
+.mantine-Stack-root > .picker-field {
+  flex: 0 1 auto;
+}
+
 .picker-field-actions {
   display: inline-flex;
   align-items: center;
