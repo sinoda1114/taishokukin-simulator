@@ -464,6 +464,21 @@ test("simultaneous tenure failure stays on that step", async ({ page }) => {
   await expect(page.getByText("勤続の開始が生年月より前になります")).toBeVisible();
 });
 
+test("consult opens from the result and the fab, then shows the unset message", async ({ page }) => {
+  await startFromInputs(page);
+  const dialog = page.getByRole("dialog", { name: "AIに相談" });
+  await page.locator(".consult-open").click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("画面に出ている数字の説明です。税務助言ではありません。")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await page.locator(".consult-fab").click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("相談内容").fill("この合計税額は何を見ればよいですか");
+  await dialog.getByRole("button", { name: "送る" }).click();
+  await expect(dialog.getByText("相談の準備ができていません")).toBeVisible();
+});
+
 test("partial year digits open the 2000s, not 1920", async ({ page }) => {
   await page.goto("/");
   const picker = page.getByRole("textbox", { name: "生年" });
