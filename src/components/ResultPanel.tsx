@@ -54,6 +54,10 @@ export function ResultPanel({
     yearRows,
     amendmentTitle,
     amendmentLead,
+    preFixedTax,
+    preFixedNet,
+    postFixedTax,
+    postFixedNet,
     patternTitle,
     patternLead,
     regimeLine,
@@ -164,19 +168,19 @@ export function ResultPanel({
           <div className="ledger-cell">
             <Text fw={600}>改正前に固定</Text>
             <Text className="yen" fw={600} fz={20} mt="xs">
-              {formatYen(preAmendment.totalTaxYen)}
+              {formatYen(preFixedTax)}
             </Text>
             <Text size="sm" c="dimmed" mt={4}>
-              手取り {formatYen(preAmendment.totalNetYen)}
+              手取り {formatYen(preFixedNet)}
             </Text>
           </div>
           <div className="ledger-cell">
             <Text fw={600}>改正後に固定</Text>
             <Text className="yen" fw={600} fz={20} mt="xs">
-              {formatYen(postAmendment.totalTaxYen)}
+              {formatYen(postFixedTax)}
             </Text>
             <Text size="sm" c="dimmed" mt={4}>
-              手取り {formatYen(postAmendment.totalNetYen)}
+              手取り {formatYen(postFixedNet)}
             </Text>
           </div>
         </SimpleGrid>

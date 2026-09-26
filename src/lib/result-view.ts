@@ -52,6 +52,10 @@ export type ResultView = {
   yearRows: YearRowView[];
   amendmentTitle: string;
   amendmentLead: string;
+  preFixedTax: number | null;
+  preFixedNet: number | null;
+  postFixedTax: number | null;
+  postFixedNet: number | null;
   patternTitle: string | null;
   patternLead: string | null;
   screenLines: string[];
@@ -86,6 +90,10 @@ const YEAR_HEADERS = [
 
 function amendmentLead(ruleModeLabel: string): string {
   return `同じ入力・同じ受取年です。左は改正前に固定、右は改正後に固定した税額です。主計算は「${ruleModeLabel}」です。`;
+}
+
+function signedYen(delta: number): string {
+  return `${delta > 0 ? "+" : ""}${formatYen(delta)}`;
 }
 
 function buildYearRows(years: SimulationResult["years"]): YearRowView[] {
@@ -225,7 +233,46 @@ export function buildResultView(args: {
   const lead = amendmentLead(ruleModeLabel);
   const patternTitle = cards ? PATTERN_TITLE : null;
   const patternLead = cards ? PATTERN_LEAD : null;
+  const preFixedTax = preAmendment.totalTaxYen;
+  const preFixedNet = preAmendment.totalNetYen;
+  const postFixedTax = postAmendment.totalTaxYen;
+  const postFixedNet = postAmendment.totalNetYen;
   const receiptYears = [...new Set(benefits.map((benefit) => benefit.receiptYear))].sort((a, b) => a - b);
+  const searchBestLine = search?.best
+    ? `探索全体の最小: ${receiptCaption(search.best.receiptYears, benefits)}`
+    : null;
+  const searchBestTax = search?.best?.result.totalTaxYen ?? null;
+  const searchRows = (search?.hits.slice(0, 8) ?? []).map((hit) => ({
+    caption: receiptCaption(hit.receiptYears, benefits),
+    tax: hit.result.totalTaxYen,
+  }));
+  const recommendedLines = recommended
+    ? [
+        `${recommended.title}: ${recommended.caption}`,
+        `推奨の税額: ${formatYen(recommended.tax)}`,
+        `推奨の手取り: ${formatYen(recommended.net)}`,
+      ]
+    : [];
+  const nextBestLines = nextBest
+    ? [`次善策: ${nextBest.caption} 税額 ${formatYen(nextBest.tax)} 手取り ${formatYen(nextBest.net)}`]
+    : [];
+  const simultaneousLines =
+    simultaneousDelta !== null && simultaneousDelta !== 0
+      ? [`同時受取との差額 ${signedYen(simultaneousDelta)}`]
+      : [];
+  const amendmentAmountLines = [
+    `改正前に固定 税額 ${formatYen(preFixedTax)} 手取り ${formatYen(preFixedNet)}`,
+    `改正後に固定 税額 ${formatYen(postFixedTax)} 手取り ${formatYen(postFixedNet)}`,
+    `差額（改正後 − 改正前） ${amendmentDelta === null ? "—" : signedYen(amendmentDelta)}`,
+  ];
+  const patternTaxLines = (cards ?? []).map((card) => {
+    const taxText = card.pattern.omittedReason ? "—" : formatYen(card.tax);
+    return `- ${card.pattern.label}: ${card.years} 税額 ${taxText}`;
+  });
+  const searchTaxLines = [
+    ...(searchBestLine ? [`${searchBestLine} 税額 ${formatYen(searchBestTax)}`] : []),
+    ...searchRows.map((row) => `- ${row.caption} 税額 ${formatYen(row.tax)}`),
+  ];
   return {
     cards,
     currentCaption,
@@ -240,14 +287,23 @@ export function buildResultView(args: {
     yearRows,
     amendmentTitle: AMENDMENT_TITLE,
     amendmentLead: lead,
+    preFixedTax,
+    preFixedNet,
+    postFixedTax,
+    postFixedNet,
     patternTitle,
     patternLead,
     screenLines: [
       ...(taxNotice ? [taxNotice] : []),
       DISCLAIMER,
+      ...recommendedLines,
+      ...nextBestLines,
+      ...simultaneousLines,
       AMENDMENT_TITLE,
       lead,
-      ...(patternTitle && patternLead ? [patternTitle, patternLead] : []),
+      ...amendmentAmountLines,
+      ...(patternTitle && patternLead ? [patternTitle, patternLead, ...patternTaxLines] : []),
+      ...searchTaxLines,
       ...yearRows.map((row) => row.line),
     ],
     regimeLine: receiptYears.map((year) => autoRegime(year)).join("。"),
@@ -257,13 +313,8 @@ export function buildResultView(args: {
         ? `組合せが ${search.combinationCount} あり、${search.hits.length} 件で打ち切りました。`
         : `${search.combinationCount} 通り。税額が小さい順、同額なら受取が早い順です。`
       : null,
-    searchBestLine: search?.best
-      ? `探索全体の最小: ${receiptCaption(search.best.receiptYears, benefits)}`
-      : null,
-    searchBestTax: search?.best?.result.totalTaxYen ?? null,
-    searchRows: (search?.hits.slice(0, 8) ?? []).map((hit) => ({
-      caption: receiptCaption(hit.receiptYears, benefits),
-      tax: hit.result.totalTaxYen,
-    })),
+    searchBestLine,
+    searchBestTax,
+    searchRows,
   };
 }
