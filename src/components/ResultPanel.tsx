@@ -2,79 +2,12 @@
 
 import { Alert, Group, List, SimpleGrid, Stack, Table, Text, Title } from "@mantine/core";
 import { useMemo } from "react";
-import {
-  defaultRuleset,
-  formatMonthIntervals,
-  resolveBenefitIntervals,
-  type BenefitInput,
-  type PatternComparison,
-  type SearchResult,
-  type SimulationResult,
-  type RuleMode,
-  type YearMonth,
-} from "@/engine";
-import { KIND_LABELS, RULE_MODE_LABELS, formatYen } from "@/lib/parse-input";
+import type { BenefitInput, PatternComparison, RuleMode, SearchResult, SimulationResult, YearMonth } from "@/engine";
+import { formatYen } from "@/lib/parse-input";
 import { searchLinePoints } from "@/lib/chart-data";
+import { buildResultView } from "@/lib/result-view";
 import { PatternBars } from "./PatternBars";
 import { SearchLine } from "./SearchLine";
-
-function receiptCaption(receiptYears: Record<string, number>, benefits: BenefitInput[]): string {
-  return Object.entries(receiptYears)
-    .map(([id, year]) => {
-      const index = benefits.findIndex((item) => item.id === id);
-      const benefit = index >= 0 ? benefits[index] : undefined;
-      const name = benefit ? KIND_LABELS[benefit.kind] : id;
-      const clash =
-        benefit !== undefined && benefits.filter((item) => item.kind === benefit.kind).length > 1;
-      return `${name}${clash ? ` ${index + 1}` : ""} ${year}年`;
-    })
-    .join("、");
-}
-
-function benefitYearList(benefits: BenefitInput[]): string {
-  return benefits
-    .map((benefit, index) => {
-      const clash = benefits.filter((item) => item.kind === benefit.kind).length > 1;
-      return `${KIND_LABELS[benefit.kind]}${clash ? ` ${index + 1}` : ""} ${benefit.receiptYear}年`;
-    })
-    .join("、");
-}
-
-function patternCards(patterns: PatternComparison[]) {
-  const baselineTax = patterns.find((p) => p.kind === "simultaneous" && !p.omittedReason)?.result
-    ?.totalTaxYen;
-  const taxes = patterns.flatMap((p) => {
-    const tax = p.omittedReason ? null : (p.result?.totalTaxYen ?? null);
-    return tax === null ? [] : [tax];
-  });
-  const bestTax = taxes.length ? Math.min(...taxes) : null;
-  return patterns.map((pattern) => {
-    const tax = pattern.omittedReason ? null : (pattern.result?.totalTaxYen ?? null);
-    const delta = tax !== null && baselineTax != null ? tax - baselineTax : null;
-    return {
-      pattern,
-      tax,
-      delta,
-      isBest: bestTax !== null && tax === bestTax && !pattern.omittedReason,
-    };
-  });
-}
-
-function autoRegime(year: number): string {
-  return year >= defaultRuleset.amendmentEffectiveYear
-    ? `${year}年の支払は改正後（${defaultRuleset.amendmentEffectiveYear}年以後）`
-    : `${year}年の支払は改正前（${defaultRuleset.amendmentEffectiveYear}年より前）`;
-}
-
-function periodLine(benefit: BenefitInput, birth?: YearMonth): string {
-  const name = KIND_LABELS[benefit.kind];
-  try {
-    const intervals = resolveBenefitIntervals(benefit, birth);
-    return `${name} ${benefit.receiptYear}年: ${formatMonthIntervals(intervals)}`;
-  } catch {
-    return `${name} ${benefit.receiptYear}年`;
-  }
-}
 
 export function ResultPanel({
   result,
@@ -85,6 +18,7 @@ export function ResultPanel({
   ruleMode,
   preAmendment,
   postAmendment,
+  onConsult,
 }: {
   result: SimulationResult;
   patterns: PatternComparison[] | null;
@@ -94,49 +28,23 @@ export function ResultPanel({
   ruleMode: RuleMode;
   preAmendment: SimulationResult;
   postAmendment: SimulationResult;
+  onConsult: () => void;
 }) {
-  const cards = patterns ? patternCards(patterns) : null;
+  const view = buildResultView({
+    result,
+    patterns,
+    search,
+    benefits,
+    birth,
+    ruleMode,
+    preAmendment,
+    postAmendment,
+  });
+  const { cards, currentCaption, recommended, nextBest, simultaneousDelta, amendmentDelta, blocked, regimeLine, periods, ruleModeLabel, searchNote, searchBestLine, searchBestTax, searchRows } = view;
   const line = useMemo(
     () => (search && birth ? searchLinePoints(search.hits, benefits, birth.year) : null),
     [benefits, birth, search],
   );
-  const currentCaption = benefitYearList(benefits);
-  const recommended = search?.best
-    ? {
-        title: "推奨案（探索全体の最小）",
-        caption: receiptCaption(search.best.receiptYears, benefits),
-        tax: search.best.result.totalTaxYen,
-        net: search.best.result.totalNetYen,
-      }
-    : cards?.find((card) => card.isBest && card.tax !== null)
-      ? {
-          title: "推奨案（3案の中で最小）",
-          caption: benefitYearList(
-            cards.find((card) => card.isBest)?.pattern.input.benefits ?? benefits,
-          ),
-          tax: cards.find((card) => card.isBest)?.tax ?? null,
-          net: cards.find((card) => card.isBest)?.pattern.result?.totalNetYen ?? null,
-        }
-      : null;
-  const nextBest = search && search.hits.length > 1
-    ? {
-        caption: receiptCaption(search.hits[1].receiptYears, benefits),
-        tax: search.hits[1].result.totalTaxYen,
-        net: search.hits[1].result.totalNetYen,
-      }
-    : null;
-  const simultaneous = patterns?.find((pattern) => pattern.kind === "simultaneous" && !pattern.omittedReason);
-  const comparedTax = recommended?.tax ?? result.totalTaxYen;
-  const simultaneousDelta =
-    comparedTax !== null && simultaneous?.result?.totalTaxYen != null
-      ? comparedTax - simultaneous.result.totalTaxYen
-      : null;
-  const amendmentDelta =
-    preAmendment.totalTaxYen !== null && postAmendment.totalTaxYen !== null
-      ? postAmendment.totalTaxYen - preAmendment.totalTaxYen
-      : null;
-  const blocked = result.warnings.find((warning) => warning.code === "receipt_ineligible");
-  const receiptYears = [...new Set(benefits.map((benefit) => benefit.receiptYear))].sort((a, b) => a - b);
 
   return (
     <Stack gap="lg">
@@ -207,9 +115,9 @@ export function ResultPanel({
           退職所得の申告書を提出する前提です。出すのは一時金の税額だけで、年金受取は含みません。試算であり、税務助言ではありません。
         </Text>
         <Stack gap={4} mt="sm">
-          {benefits.map((benefit) => (
-            <Text key={benefit.id} size="sm" c="var(--ink-muted)">
-              {periodLine(benefit, birth)}
+          {periods.map((period) => (
+            <Text key={period.id} size="sm" c="var(--ink-muted)">
+              {period.text}
             </Text>
           ))}
         </Stack>
@@ -232,7 +140,7 @@ export function ResultPanel({
       <div>
         <Title order={2}>改正前と改正後</Title>
         <Text size="sm" c="dimmed" mt={4} mb="sm">
-          同じ入力・同じ受取年です。左は改正前に固定、右は改正後に固定した税額です。主計算は「{RULE_MODE_LABELS[ruleMode]}」です。
+          同じ入力・同じ受取年です。左は改正前に固定、右は改正後に固定した税額です。主計算は「{ruleModeLabel}」です。
         </Text>
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
           <div className="ledger-cell">
@@ -259,7 +167,7 @@ export function ResultPanel({
           {amendmentDelta === null ? "—" : `${amendmentDelta > 0 ? "+" : ""}${formatYen(amendmentDelta)}`}
         </Text>
         <Text size="sm" mt={4} c="var(--ink-muted)">
-          受取年で自動にすると、{receiptYears.map((year) => autoRegime(year)).join("。")}。
+          受取年で自動にすると、{regimeLine}。
         </Text>
       </div>
 
@@ -270,17 +178,17 @@ export function ResultPanel({
             この3案の中の最小です。探索全体の最小とは別に出します。差額の基準は、会社の受取年での同時受取です。
           </Text>
           <PatternBars
-            rows={cards.map(({ pattern, tax, isBest }) => ({
+            rows={cards.map(({ pattern, tax, isBest, years }) => ({
               key: pattern.kind,
               label: pattern.label,
-              years: benefitYearList(pattern.input.benefits),
+              years,
               tax,
               isBest,
               omitted: pattern.omittedReason,
             }))}
           />
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg" mt="md">
-            {cards.map(({ pattern, tax, delta, isBest }) => (
+            {cards.map(({ pattern, tax, delta, isBest, years }) => (
               <div key={pattern.kind} className={isBest ? "ledger-cell is-best" : "ledger-cell"}>
                 <Group justify="space-between" gap="xs" wrap="nowrap">
                   <Text fw={600} style={{ wordBreak: "keep-all" }}>
@@ -293,7 +201,7 @@ export function ResultPanel({
                   ) : null}
                 </Group>
                 <Text size="sm" mt={4} c="var(--ink-muted)">
-                  {benefitYearList(pattern.input.benefits)}
+                  {years}
                 </Text>
                 <Text className="yen" fw={600} fz={20} mt="xs">
                   {pattern.omittedReason ? "—" : formatYen(tax)}
@@ -395,17 +303,16 @@ export function ResultPanel({
           <Title order={2}>受取年の探索</Title>
           {search.truncated ? (
             <Alert color="yellow" mt="sm">
-              組合せが {search.combinationCount} あり、{search.hits.length} 件で打ち切りました。
+              {searchNote}
             </Alert>
           ) : (
             <Text size="sm" c="dimmed" mt="xs">
-              {search.combinationCount} 通り。税額が小さい順、同額なら受取が早い順です。
+              {searchNote}
             </Text>
           )}
-          {search.best ? (
+          {searchBestLine ? (
             <Text mt="sm" size="sm">
-              探索全体の最小: {receiptCaption(search.best.receiptYears, benefits)} ／{" "}
-              <span className="yen">{formatYen(search.best.result.totalTaxYen)}</span>
+              {searchBestLine} ／ <span className="yen">{formatYen(searchBestTax)}</span>
             </Text>
           ) : null}
           {line ? (
@@ -426,10 +333,10 @@ export function ResultPanel({
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {search.hits.slice(0, 8).map((hit, index) => (
-                  <Table.Tr key={JSON.stringify(hit.receiptYears)} className={index === 0 ? "is-best-row" : undefined}>
-                    <Table.Td>{receiptCaption(hit.receiptYears, benefits)}</Table.Td>
-                    <Table.Td className="yen">{formatYen(hit.result.totalTaxYen)}</Table.Td>
+                {searchRows.map((row, index) => (
+                  <Table.Tr key={`${row.caption}-${index}`} className={index === 0 ? "is-best-row" : undefined}>
+                    <Table.Td>{row.caption}</Table.Td>
+                    <Table.Td className="yen">{formatYen(row.tax)}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -437,6 +344,15 @@ export function ResultPanel({
           </Table.ScrollContainer>
         </div>
       ) : null}
+
+      <div className="consult-end">
+        <button type="button" className="consult-open" onClick={onConsult}>
+          AIに相談
+        </button>
+        <Text size="sm" c="dimmed" mt={8}>
+          画面に出ている数字の説明です。税務助言ではありません。
+        </Text>
+      </div>
     </Stack>
   );
 }

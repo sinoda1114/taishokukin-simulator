@@ -28,10 +28,12 @@ import { isRuleMode, RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-
 import { defaultInput } from "@/lib/default-input";
 import { FIELD_RANGES } from "@/lib/field-ranges";
 import { parseBirthYear, parseMonth } from "@/lib/field-validation";
+import { buildConsultSummary } from "@/lib/consult-summary";
 import { HearingFlow } from "./HearingFlow";
 import { BenefitEditor } from "./BenefitEditor";
 import { IntPickerField } from "./IntPickerField";
 import { ResultPanel } from "./ResultPanel";
+import { ConsultChat } from "./ConsultChat";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -62,6 +64,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
   const [birthYearRaw, setBirthYearRaw] = useState(String(input.birthYearMonth?.year ?? ""));
   const [birthMonthRaw, setBirthMonthRaw] = useState(String(input.birthYearMonth?.month ?? ""));
   const [benefitOk, setBenefitOk] = useState<Record<string, boolean>>({});
+  const [consultOpen, setConsultOpen] = useState(false);
 
   const birthYearParsed = parseBirthYear(birthYearRaw);
   const birthMonthParsed = parseMonth(birthMonthRaw, "生月");
@@ -102,6 +105,23 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
       };
     }
   }, [benefitsValid, birthValid, input]);
+
+  const consultSummary = useMemo(
+    () =>
+      buildConsultSummary({
+        phase,
+        birthYear: input.birthYearMonth?.year ?? null,
+        birthMonth: input.birthYearMonth?.month ?? null,
+        ruleMode: input.ruleMode,
+        benefits: input.benefits,
+        result: computed.result,
+        preAmendment: computed.preAmendment,
+        postAmendment: computed.postAmendment,
+        patterns: computed.patterns,
+        search: computed.search,
+      }),
+    [computed, input, phase],
+  );
 
   function commitBirth(yearRaw: string, monthRaw: string) {
     const year = parseBirthYear(yearRaw);
@@ -177,22 +197,20 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
     }
   }
 
-  if (phase === "hearing") {
-    return (
-      <HearingFlow
-        initial={input}
-        onSkip={() => setPhase("results")}
-        onComplete={(next) => {
-          setInput(next);
-          setBirthYearRaw(String(next.birthYearMonth?.year ?? ""));
-          setBirthMonthRaw(String(next.birthYearMonth?.month ?? ""));
-          setPhase("results");
-        }}
-      />
-    );
-  }
-
   return (
+    <>
+      {phase === "hearing" ? (
+        <HearingFlow
+          initial={input}
+          onSkip={() => setPhase("results")}
+          onComplete={(next) => {
+            setInput(next);
+            setBirthYearRaw(String(next.birthYearMonth?.year ?? ""));
+            setBirthMonthRaw(String(next.birthYearMonth?.month ?? ""));
+            setPhase("results");
+          }}
+        />
+      ) : (
     <Grid id="main" gutter={{ base: "lg", md: "xl" }} component="main" align="start">
       <Grid.Col span={{ base: 12, md: 5 }}>
         <Paper className="panel panel--flat" p={{ base: "md", sm: "lg" }} component="section" aria-labelledby="input-heading">
@@ -325,6 +343,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
               ruleMode={input.ruleMode}
               preAmendment={computed.preAmendment}
               postAmendment={computed.postAmendment}
+              onConsult={() => setConsultOpen(true)}
             />
           ) : (
             <Text c="dimmed">入力を直すと、ここに税額が出ます。</Text>
@@ -332,5 +351,14 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
         </Paper>
       </Grid.Col>
     </Grid>
+      )}
+      <ConsultChat
+        open={consultOpen}
+        summary={consultSummary}
+        onOpen={() => setConsultOpen(true)}
+        onClose={() => setConsultOpen(false)}
+      />
+      <div className="consult-fab-space" aria-hidden="true" />
+    </>
   );
 }
