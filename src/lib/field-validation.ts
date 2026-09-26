@@ -1,5 +1,5 @@
-import { reconstructSimpleInterval, type YearMonth } from "@/engine";
-import { FIELD_RANGES, receiptAgeRange } from "./field-ranges";
+import { reconstructSimpleInterval, type BenefitKind, type YearMonth } from "@/engine";
+import { contributionEndBounds, FIELD_RANGES, receiptAgeRange } from "./field-ranges";
 
 export type ParseResult = { ok: true; value: number } | { ok: false; error: string };
 
@@ -42,16 +42,34 @@ export function parseIncomeYen(raw: string): ParseResult {
   return parseCountedInt(raw, { label: "見込み受取額", allowComma: true, ...FIELD_RANGES.incomeYen });
 }
 
-export function parseReceiptAge(raw: string, birthYear: number | null): ParseResult {
+export function parseReceiptAge(
+  raw: string,
+  birthYear: number | null,
+  context: { kind?: BenefitKind; serviceYears?: number; membershipMonths?: number } = {},
+): ParseResult {
   if (birthYear === null) {
     return { ok: false, error: "生年月を先に入れてください" };
   }
-  const range = receiptAgeRange(birthYear);
+  const range = receiptAgeRange(
+    birthYear,
+    context.kind ?? "company",
+    context.serviceYears ?? 10,
+    context.membershipMonths,
+  );
   return parseCountedInt(raw, { label: "受取年齢", min: range.min, max: range.max });
 }
 
-export function parseContributionEndAge(raw: string): ParseResult {
-  return parseCountedInt(raw, { label: "拠出終了年齢", ...FIELD_RANGES.contributionEndAge });
+export function parseContributionEndAge(raw: string, receiptAge: number | null = null): ParseResult {
+  const bounds = contributionEndBounds(receiptAge);
+  if (bounds.max < bounds.min) {
+    return { ok: false, error: "受取年齢が拠出終了年齢の下限（50歳）より前です" };
+  }
+  const parsed = parseCountedInt(raw, { label: "拠出終了年齢", min: bounds.min, max: bounds.max });
+  if (!parsed.ok) return parsed;
+  if (receiptAge !== null && parsed.value > receiptAge) {
+    return { ok: false, error: "拠出終了年齢は受取年齢以前にしてください" };
+  }
+  return parsed;
 }
 
 export function intervalOrderError(start: YearMonth, end: YearMonth): string | null {

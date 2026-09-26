@@ -48,6 +48,23 @@ describe("receipt age", () => {
   it("rejects an age whose year is outside the receipt range", () => {
     expect(parseReceiptAge("10", 1965).ok).toBe(false);
   });
+
+  it("keeps company retirement under 60 and rejects age 3", () => {
+    expect(parseReceiptAge("45", 1977, { kind: "company" })).toEqual({ ok: true, value: 45 });
+    expect(parseReceiptAge("20", 1977, { kind: "company" })).toEqual({ ok: true, value: 20 });
+    expect(parseReceiptAge("3", 1977, { kind: "company" }).ok).toBe(false);
+    expect(parseReceiptAge("19", 1977, { kind: "company" }).ok).toBe(false);
+  });
+
+  it("hides DC ages under 60 and raises the floor when membership is short", () => {
+    expect(parseReceiptAge("59", 1977, { kind: "dc", serviceYears: 20 }).ok).toBe(false);
+    expect(parseReceiptAge("60", 1977, { kind: "dc", serviceYears: 20 })).toEqual({ ok: true, value: 60 });
+    expect(parseReceiptAge("60", 1977, { kind: "dc", serviceYears: 8 }).ok).toBe(false);
+    expect(parseReceiptAge("61", 1977, { kind: "dc", serviceYears: 8 })).toEqual({ ok: true, value: 61 });
+    expect(parseReceiptAge("76", 1977, { kind: "dc", serviceYears: 20 }).ok).toBe(false);
+    expect(parseReceiptAge("61", 1965, { kind: "dc", membershipMonths: 90 }).ok).toBe(false);
+    expect(parseReceiptAge("62", 1965, { kind: "dc", membershipMonths: 90 })).toEqual({ ok: true, value: 62 });
+  });
 });
 
 describe("service vs receipt", () => {

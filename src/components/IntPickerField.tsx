@@ -15,6 +15,7 @@ type Props = {
   disabled?: boolean;
   optionSuffix?: string;
   pickerCenter?: number;
+  windowAlign?: "center" | "start";
 };
 
 function optionLabel(value: number, suffix?: string): string {
@@ -35,6 +36,7 @@ export function IntPickerField({
   disabled,
   optionSuffix,
   pickerCenter,
+  windowAlign = "center",
 }: Props) {
   const [opened, setOpened] = useState(false);
   const [query, setQuery] = useState("");
@@ -49,13 +51,18 @@ export function IntPickerField({
     if (!opened) return selected === null ? [] : [option(selected, optionSuffix)];
     const fallback = selected ?? pickerCenter ?? Math.round((min + max) / 2);
     const center = prefixCenter(typedDigits, min, max, fallback);
-    const window = pickerWindow(min, max, center);
+    const align = typedDigits ? "center" : windowAlign;
+    const anchor = typedDigits ? center : (pickerCenter ?? center);
+    const window = pickerWindow(min, max, anchor, align);
     const options: { value: string; label: string }[] = [];
     for (let n = window.min; n <= window.max; n += 1) {
       options.push(option(n, optionSuffix));
     }
+    if (selected !== null && (selected < window.min || selected > window.max)) {
+      options.push(option(selected, optionSuffix));
+    }
     return options;
-  }, [opened, min, max, optionSuffix, selected, typedDigits, pickerCenter]);
+  }, [opened, min, max, optionSuffix, selected, typedDigits, pickerCenter, windowAlign]);
 
   return (
     <div className="picker-field">

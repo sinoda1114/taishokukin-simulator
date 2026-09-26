@@ -1,7 +1,17 @@
-import type { CalculationStep, TaxRuleset } from "./types";
+import type { CalculationStep, MonthInterval, TaxRuleset } from "./types";
 
 function yen(n: number): string {
   return `${n.toLocaleString("ja-JP")}円`;
+}
+
+export function formatMonthIntervals(intervals: MonthInterval[]): string {
+  if (intervals.length === 0) return "期間なし";
+  return intervals
+    .map(
+      (interval) =>
+        `${interval.start.year}年${interval.start.month}月〜${interval.end.year}年${interval.end.month}月`,
+    )
+    .join("、");
 }
 
 export type QualifyingPrior = {
@@ -10,10 +20,18 @@ export type QualifyingPrior = {
   n: number;
   deemed: boolean;
   deemedYears: number | null;
+  intervals: MonthInterval[];
+};
+
+export type ExplainedBenefit = {
+  name: string;
+  receiptYear: number;
+  incomeYen: number;
+  intervals: MonthInterval[];
 };
 
 export function explainYear(args: {
-  incomes: Array<{ id: string; incomeYen: number }>;
+  benefits: ExplainedBenefit[];
   serviceMonths: number;
   serviceYears: number;
   statutoryDeductionYen: number;
@@ -27,15 +45,27 @@ export function explainYear(args: {
   taxableYen?: number;
   nationalTaxYen?: number;
   residentTaxYen?: number;
+  taxRateBp?: number;
+  quickDeductionYen?: number;
 }): { steps: CalculationStep[]; notes: string[] } {
-  const incomeYen = args.incomes.reduce((sum, b) => sum + b.incomeYen, 0);
+  const incomeYen = args.benefits.reduce((sum, benefit) => sum + benefit.incomeYen, 0);
   const steps: CalculationStep[] = [
     {
       code: "income",
       label: "本年分の収入",
       formula: "同一年の退職手当等を合算",
-      substituted: args.incomes.map((b) => `${b.id}:${yen(b.incomeYen)}`).join(" + "),
+      substituted: args.benefits
+        .map((benefit) => `${benefit.name}（${benefit.receiptYear}年）: ${yen(benefit.incomeYen)}`)
+        .join(" + "),
       resultYen: incomeYen,
+    },
+    {
+      code: "periods",
+      label: "対象期間",
+      formula: "手当ごとの勤続・拠出区間。重なる月は二重に数えない",
+      substituted: args.benefits
+        .map((benefit) => `${benefit.name}（${benefit.receiptYear}年） ${formatMonthIntervals(benefit.intervals)}`)
+        .join("。"),
     },
     {
       code: "service",
@@ -60,7 +90,15 @@ export function explainYear(args: {
       code: "overlap_years",
       label: "重複年数（切捨て）",
       formula: "本年の勤続月 ∩ 対象となる前の勤続月（みなし後）。月数÷12の商",
-      substituted: `${args.overlapMonths}か月`,
+      substituted:
+        args.qualifying.length === 0
+          ? `${args.overlapMonths}か月`
+          : `${args.overlapMonths}か月。${args.qualifying
+              .map(
+                (prior) =>
+                  `${prior.year}年の${prior.category === "dc" ? "DC" : "一般"} ${formatMonthIntervals(prior.intervals)}`,
+              )
+              .join("、")}`,
       resultMonths: args.overlapMonths,
       resultYears: args.overlapYears,
     },
@@ -81,6 +119,10 @@ export function explainYear(args: {
   ];
 
   if (args.taxableYen !== undefined) {
+    const rate =
+      args.taxRateBp === undefined ? null : `${args.taxRateBp / 10}%`;
+    const quick =
+      args.quickDeductionYen === undefined ? null : yen(args.quickDeductionYen);
     steps.push(
       {
         code: "taxable",
@@ -92,8 +134,11 @@ export function explainYear(args: {
       {
         code: "national",
         label: "所得税および復興特別所得税",
-        formula: "floor((A×税率 − 控除額) × 102.1%)。途中切捨てなし。2038年以後は復興税0",
-        substituted: `課税所得 ${yen(args.taxableYen)}`,
+        formula: "floor((A×税率 − 速算控除) × 102.1%)。途中切捨てなし。2038年以後は復興税0",
+        substituted:
+          rate !== null && quick !== null
+            ? `課税所得 ${yen(args.taxableYen)} × 税率 ${rate} − 速算控除 ${quick}`
+            : `課税所得 ${yen(args.taxableYen)}`,
         resultYen: args.nationalTaxYen,
       },
       {
@@ -106,11 +151,13 @@ export function explainYear(args: {
     );
   }
 
-  const notes = args.qualifying.map(
-    (q) =>
-      `${q.year}年の${q.category === "dc" ? "DC" : "一般"}を前年以前${q.n}年内として算入` +
-      (q.deemed ? `（みなし勤続${q.deemedYears}年）` : ""),
-  );
+  const notes = args.qualifying.map((prior) => {
+    const category = prior.category === "dc" ? "DC" : "一般";
+    const deemed = prior.deemed ? `（みなし勤続${prior.deemedYears}年）` : "";
+    const period =
+      prior.intervals.length > 0 ? `。対象期間 ${formatMonthIntervals(prior.intervals)}` : "";
+    return `${prior.year}年の${category}を前年以前${prior.n}年内として算入${deemed}${period}`;
+  });
   if (args.shortTenure) {
     notes.push("勤続5年以下のため税額は出しません（特定役員・短期退職手当等は未対応）");
   }
@@ -120,9 +167,11 @@ export function explainYear(args: {
 export function dcReceiptYears(
   birthYear: number,
   ruleset: Pick<TaxRuleset, "dcReceiptAgeMin" | "dcReceiptAgeMax">,
+  minAge = ruleset.dcReceiptAgeMin,
 ): number[] {
   const years: number[] = [];
-  for (let age = ruleset.dcReceiptAgeMin; age <= ruleset.dcReceiptAgeMax; age += 1) {
+  const start = Math.max(ruleset.dcReceiptAgeMin, minAge);
+  for (let age = start; age <= ruleset.dcReceiptAgeMax; age += 1) {
     years.push(birthYear + age);
   }
   return years;

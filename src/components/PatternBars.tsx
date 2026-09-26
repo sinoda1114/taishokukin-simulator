@@ -9,6 +9,7 @@ export function PatternBars({
   rows: Array<{
     key: string;
     label: string;
+    years: string;
     tax: number | null;
     isBest: boolean;
     omitted?: string;
@@ -25,12 +26,20 @@ export function PatternBars({
               <Text fw={600} size="sm" style={{ wordBreak: "keep-all" }}>
                 {row.isBest ? <span className="bar-mark" aria-hidden /> : null}
                 {row.label}
-                {row.isBest ? " · 税額最小" : ""}
+                {row.isBest ? " · 3案の中で最小" : ""}
               </Text>
               <Text className="yen" size="sm" fw={600}>
                 {row.omitted ? "—" : formatYen(row.tax)}
               </Text>
             </div>
+            <Text size="sm" c="var(--ink-muted)">
+              {row.years}
+            </Text>
+            {row.omitted ? (
+              <Text size="sm" c="var(--ink-muted)">
+                — {row.omitted}
+              </Text>
+            ) : null}
             <div className="bar-track">
               <div
                 className={row.isBest ? "bar-fill is-best" : "bar-fill"}

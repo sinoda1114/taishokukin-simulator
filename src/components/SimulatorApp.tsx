@@ -72,6 +72,8 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
     if (!birthValid || !benefitsValid) {
       return {
         result: null,
+        preAmendment: null,
+        postAmendment: null,
         patterns: null,
         search: null,
         error: "",
@@ -81,6 +83,8 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
       const parsed = parseSimulationInput(input);
       return {
         result: simulate(parsed),
+        preAmendment: simulate({ ...parsed, ruleMode: "pre_2026" }),
+        postAmendment: simulate({ ...parsed, ruleMode: "post_2026" }),
         patterns: buildThreePatterns(parsed),
         search: parsed.benefits.some((b) => b.optimizeReceiptYear)
           ? searchReceiptYears(parsed)
@@ -90,6 +94,8 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
     } catch {
       return {
         result: null,
+        preAmendment: null,
+        postAmendment: null,
         patterns: null,
         search: null,
         error: "入力が不正です。年数・金額を確認してください。",
@@ -309,12 +315,16 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
           tabIndex={-1}
           aria-labelledby="results-heading"
         >
-          {computed.result ? (
+          {computed.result && computed.preAmendment && computed.postAmendment ? (
             <ResultPanel
               result={computed.result}
               patterns={computed.patterns}
               search={computed.search}
               benefits={input.benefits}
+              birth={input.birthYearMonth}
+              ruleMode={input.ruleMode}
+              preAmendment={computed.preAmendment}
+              postAmendment={computed.postAmendment}
             />
           ) : (
             <Text c="dimmed">入力を直すと、ここに税額が出ます。</Text>

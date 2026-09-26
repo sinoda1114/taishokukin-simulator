@@ -14,9 +14,10 @@ import {
   serviceYearsFromMonths,
   totalMonths,
 } from "./months";
+import { dcMinimumReceiptAgeFromMonths, EARLIEST_RETIREMENT_AGE } from "./dc-age";
 import { explainYear } from "./explain";
 import { defaultRuleset } from "./ruleset";
-import { taxOnRetirementIncome } from "./tax";
+import { incomeTaxBracket, taxOnRetirementIncome } from "./tax";
 import type {
   AdjustmentCategory,
   BenefitInput,
@@ -57,7 +58,8 @@ function extendForContributionEnd(
   if (benefit.kind !== "dc" || benefit.contributionEndAge === undefined || !birth) {
     return intervals;
   }
-  const endYear = yearOfAge(birth, benefit.contributionEndAge);
+  const requestedYear = yearOfAge(birth, benefit.contributionEndAge);
+  const endYear = Math.min(requestedYear, benefit.receiptYear);
   const merged = mergeIntervals(intervals);
   if (merged.length === 0) return merged;
   const last = merged[merged.length - 1];
@@ -68,6 +70,24 @@ function extendForContributionEnd(
     };
   }
   return mergeIntervals(merged);
+}
+
+function benefitName(benefit: BenefitInput): string {
+  if (benefit.label && benefit.label.trim() !== "") return benefit.label;
+  switch (benefit.kind) {
+    case "company":
+      return "会社退職金";
+    case "dc":
+      return "iDeCo・企業型DC一時金";
+    case "mutual_aid":
+      return "小規模企業共済";
+    case "other":
+      return "その他";
+    default: {
+      const unreachable: never = benefit.kind;
+      return unreachable;
+    }
+  }
 }
 
 export function resolveBenefitIntervals(
@@ -106,6 +126,59 @@ export function freezeServiceIntervals(input: SimulationInput): SimulationInput 
       serviceYears: undefined,
     })),
   };
+}
+
+/**
+ * 候補の受取年で拠出を打ち切った区間。
+ * 年月区間は元の区間からその年まで延ばす。簡易入力は元の受取年に固定した区間のまま。
+ */
+function intervalsAtReceipt(
+  benefit: BenefitInput,
+  receiptYear: number,
+  birth?: YearMonth,
+): MonthInterval[] {
+  if (benefit.intervals && benefit.intervals.length > 0) {
+    return resolveBenefitIntervals({ ...benefit, receiptYear }, birth);
+  }
+  return resolveBenefitIntervals(benefit, birth);
+}
+
+export function membershipMonthsAtReceipt(
+  benefit: BenefitInput,
+  birth: YearMonth | undefined,
+  receiptYear: number,
+): number {
+  return totalMonths(intervalsAtReceipt(benefit, receiptYear, birth));
+}
+
+export function benefitAtReceiptYear(
+  benefit: BenefitInput,
+  receiptYear: number,
+  birth?: YearMonth,
+): BenefitInput {
+  return {
+    ...benefit,
+    receiptYear,
+    optimizeReceiptYear: false,
+    intervals: intervalsAtReceipt(benefit, receiptYear, birth),
+    serviceYears: undefined,
+  };
+}
+
+export function dcReceiptAgeAllowed(
+  benefit: BenefitInput,
+  receiptYear: number,
+  birth: YearMonth | undefined,
+  ruleset: TaxRuleset,
+): boolean {
+  if (benefit.kind !== "dc" || !birth) return true;
+  const age = ageInCalendarYear(birth, receiptYear);
+  if (age < EARLIEST_RETIREMENT_AGE || age > ruleset.dcReceiptAgeMax) return false;
+  const minAge = dcMinimumReceiptAgeFromMonths(
+    membershipMonthsAtReceipt(benefit, birth, receiptYear),
+    ruleset,
+  );
+  return age >= minAge;
 }
 
 function usesPostAmendment(
@@ -173,6 +246,63 @@ function hasShortTenure(current: ResolvedBenefit[], unionYears: number): boolean
   );
 }
 
+function receiptBlockMessage(
+  benefit: ResolvedBenefit,
+  birth: YearMonth | undefined,
+  ruleset: TaxRuleset,
+): string | null {
+  if (!birth) return null;
+  const age = ageInCalendarYear(birth, benefit.receiptYear);
+  const name = benefitName(benefit);
+  if (age < EARLIEST_RETIREMENT_AGE) {
+    return `${name}の受取年齢${age}歳は、退職しうる年齢（${EARLIEST_RETIREMENT_AGE}歳）より前です。`;
+  }
+  if (benefit.kind !== "dc") return null;
+  const minAge = dcMinimumReceiptAgeFromMonths(totalMonths(benefit.intervals), ruleset);
+  if (age < minAge || age > ruleset.dcReceiptAgeMax) {
+    return `${name}の受取年齢${age}歳は受けられません。受けられるのは${minAge}歳から${ruleset.dcReceiptAgeMax}歳です。`;
+  }
+  return null;
+}
+
+function contributionNotes(
+  benefits: BenefitInput[],
+  birth: YearMonth | undefined,
+  ruleset: TaxRuleset,
+): SimulationWarning[] {
+  if (!birth) return [];
+  const notes: SimulationWarning[] = [];
+  for (const benefit of benefits) {
+    if (benefit.kind !== "dc" || benefit.contributionEndAge === undefined) continue;
+    const requestedYear = yearOfAge(birth, benefit.contributionEndAge);
+    const name = benefitName(benefit);
+    if (requestedYear > benefit.receiptYear) {
+      notes.push({
+        code: `contribution_end_${benefit.id}`,
+        message: `${name}の拠出終了${benefit.contributionEndAge}歳は受取年より後です。受取年を超える拠出は控除に入れていません。見込み受取額は固定です。`,
+      });
+    }
+    let baseline: MonthInterval[];
+    let extended: MonthInterval[];
+    try {
+      baseline = resolveBenefitIntervals({ ...benefit, contributionEndAge: undefined }, birth);
+      extended = resolveBenefitIntervals(benefit, birth);
+    } catch {
+      continue;
+    }
+    const baseYears = serviceYearsFromMonths(totalMonths(baseline));
+    const nextYears = serviceYearsFromMonths(totalMonths(extended));
+    if (nextYears <= baseYears) continue;
+    const baseDeduction = statutoryDeductionYen(baseYears, ruleset);
+    const nextDeduction = statutoryDeductionYen(nextYears, ruleset);
+    notes.push({
+      code: `contribution_extend_${benefit.id}`,
+      message: `${name}の拠出終了を${benefit.contributionEndAge}歳にすると、加入年数は${baseYears}年から${nextYears}年になります（+${nextYears - baseYears}年）。控除は${baseDeduction.toLocaleString("ja-JP")}円から${nextDeduction.toLocaleString("ja-JP")}円です（+${(nextDeduction - baseDeduction).toLocaleString("ja-JP")}円）。見込み受取額は固定です。`,
+    });
+  }
+  return notes;
+}
+
 function computeYear(args: {
   year: number;
   current: ResolvedBenefit[];
@@ -233,9 +363,15 @@ function computeYear(args: {
         paymentYear: year,
         ruleset,
       });
+  const bracket = tax ? incomeTaxBracket(tax.taxableYen, ruleset) : null;
 
   const { steps, notes } = explainYear({
-    incomes: current.map((b) => ({ id: b.id, incomeYen: b.incomeYen })),
+    benefits: current.map((benefit) => ({
+      name: benefitName(benefit),
+      receiptYear: benefit.receiptYear,
+      incomeYen: benefit.incomeYen,
+      intervals: benefit.intervals,
+    })),
     serviceMonths,
     serviceYears,
     statutoryDeductionYen: statutory,
@@ -250,11 +386,14 @@ function computeYear(args: {
       n: q.n,
       deemed: q.deemed,
       deemedYears: q.deemedYears,
+      intervals: q.intervals,
     })),
     shortTenure,
     taxableYen: tax?.taxableYen,
     nationalTaxYen: tax?.nationalTaxYen,
     residentTaxYen: tax?.residentTaxYen,
+    taxRateBp: bracket?.rateBp,
+    quickDeductionYen: bracket?.deductionYen,
   });
 
   return {
@@ -310,20 +449,33 @@ export function simulate(
   const years = [...byYear.keys()].sort((a, b) => a - b);
   const priors: PriorLump[] = [];
   const yearResults: YearTaxResult[] = [];
+  const ineligibleIds = new Set<string>();
+  const blockedMessages: string[] = [];
+  for (const benefit of resolved) {
+    const message = receiptBlockMessage(benefit, input.birthYearMonth, ruleset);
+    if (!message) continue;
+    ineligibleIds.add(benefit.id);
+    blockedMessages.push(message);
+  }
+  const blockedOnlyYears = new Set<number>();
 
   for (const year of years) {
     const current = byYear.get(year) ?? [];
+    const eligible = current.filter((benefit) => !ineligibleIds.has(benefit.id));
+    const counted = eligible.length > 0 ? eligible : current;
+    if (eligible.length === 0) blockedOnlyYears.add(year);
     const result = computeYear({
       year,
-      current,
+      current: counted,
       priors,
       ruleMode: input.ruleMode,
       ruleset,
     });
     yearResults.push(result);
+    if (eligible.length === 0) continue;
 
     const grouped = new Map<AdjustmentCategory, ResolvedBenefit[]>();
-    for (const benefit of current) {
+    for (const benefit of eligible) {
       const cat = categoryOf(benefit.kind);
       const list = grouped.get(cat) ?? [];
       list.push(benefit);
@@ -348,6 +500,10 @@ export function simulate(
         "小規模企業共済は一般の退職金と同じ式で計算します。任意解約が退職所得にならない場合があります。受取年は自動では動かしません。",
     });
   }
+  if (blockedMessages.length > 0) {
+    warnings.push({ code: "receipt_ineligible", message: blockedMessages.join("") });
+  }
+  warnings.push(...contributionNotes(input.benefits, input.birthYearMonth, ruleset));
   if (resolved.some((b) => b.kind === "dc")) {
     warnings.push({
       code: "dc_age_note",
@@ -361,18 +517,40 @@ export function simulate(
     });
   }
 
-  const outOfScope = yearResults.some((y) => y.status === "tenure_out_of_scope");
-  const totalTaxYen = outOfScope
-    ? null
-    : yearResults.reduce((sum, y) => sum + (y.totalTaxYen ?? 0), 0);
-  const totalNetYen = outOfScope
-    ? null
-    : yearResults.reduce((sum, y) => sum + (y.netYen ?? 0), 0);
+  const hadShortTenure = yearResults.some(
+    (year) => !blockedOnlyYears.has(year.year) && year.status === "tenure_out_of_scope",
+  );
+  const pricedYears = yearResults.map((year) => {
+    if (!blockedOnlyYears.has(year.year)) return year;
+    return {
+      ...year,
+      status: "receipt_ineligible" as const,
+      taxableYen: null,
+      incomeTaxYen: null,
+      reconstructionTaxYen: null,
+      municipalTaxYen: null,
+      prefecturalTaxYen: null,
+      residentTaxYen: null,
+      nationalTaxYen: null,
+      totalTaxYen: null,
+      netYen: null,
+      notes: [...year.notes, "受取できない年齢のため、税額は出していません。"],
+    };
+  });
+  const priced = pricedYears.filter((year) => year.totalTaxYen !== null);
+  const totalTaxYen =
+    hadShortTenure || priced.length === 0
+      ? null
+      : priced.reduce((sum, year) => sum + (year.totalTaxYen ?? 0), 0);
+  const totalNetYen =
+    hadShortTenure || priced.length === 0
+      ? null
+      : priced.reduce((sum, year) => sum + (year.netYen ?? 0), 0);
 
   return {
     schemaVersion: 1,
     rulesetVersion: ruleset.version,
-    years: yearResults,
+    years: pricedYears,
     totalTaxYen,
     totalNetYen,
     warnings,

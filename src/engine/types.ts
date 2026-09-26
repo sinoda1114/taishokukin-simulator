@@ -75,7 +75,7 @@ export type CalculationStep = {
   resultMonths?: number;
 };
 
-export type YearTaxStatus = "ok" | "tenure_out_of_scope";
+export type YearTaxStatus = "ok" | "tenure_out_of_scope" | "receipt_ineligible";
 
 export type YearTaxResult = {
   year: number;

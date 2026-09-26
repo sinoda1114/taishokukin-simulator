@@ -4,6 +4,9 @@ export {
   resolveBenefits,
   resolveBenefitIntervals,
   freezeServiceIntervals,
+  benefitAtReceiptYear,
+  membershipMonthsAtReceipt,
+  dcReceiptAgeAllowed,
   categoryOf,
   lookbackYears,
   yearOfAge,
@@ -15,7 +18,14 @@ export {
   reverseDeemedYears,
   needsDeemedService,
 } from "./deduction";
-export { retirementTaxableYen, taxOnRetirementIncome, nationalTaxYen, residentTaxYen } from "./tax";
+export { retirementTaxableYen, taxOnRetirementIncome, nationalTaxYen, residentTaxYen, incomeTaxBracket } from "./tax";
+export {
+  EARLIEST_RETIREMENT_AGE,
+  dcMinimumReceiptAge,
+  dcMinimumReceiptAgeFromMonths,
+  membershipYears,
+} from "./dc-age";
+export { formatMonthIntervals } from "./explain";
 export {
   serviceYearsFromMonths,
   overlapYearsFromMonths,

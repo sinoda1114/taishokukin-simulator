@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { defaultInput } from "./default-input";
 import {
   answersFromInput,
+  hearingGoalChange,
+  hearingStepForErrors,
   inputFromAnswers,
   nextHearingStep,
+  parseDraft,
   prevHearingStep,
   visibleHearingSteps,
 } from "./hearing";
@@ -27,8 +30,8 @@ describe("hearing steps", () => {
 describe("hearing mapping", () => {
   it("round-trips the sample input used for skip", () => {
     const answers = answersFromInput(defaultInput);
-    expect(answers.companyReceiptAge).toBe(65);
-    expect(answers.dcReceiptAge).toBe(65);
+    expect(answers.companyReceiptAge).toBe(60);
+    expect(answers.dcReceiptAge).toBe(60);
     expect(answers.hasExtra).toBe(false);
     expect(answers.goal).toBe("sequence");
     const next = inputFromAnswers(answers);
@@ -54,23 +57,75 @@ describe("hearing mapping", () => {
     expect(input.benefits[0]?.kind).toBe("company");
   });
 
-  it("sets DC receipt to the company year for simultaneous", () => {
+  it("does not overwrite either age unless the draft says they are the same", () => {
     const input = inputFromAnswers({
       birthYear: 1965,
       birthMonth: 4,
       companyIncomeYen: 20_000_000,
       companyServiceYears: 30,
-      companyReceiptAge: 65,
+      companyReceiptAge: 55,
       hasDc: true,
       dcIncomeYen: 10_000_000,
       dcServiceYears: 20,
-      dcReceiptAge: 69,
+      dcReceiptAge: 62,
       hasExtra: false,
       goal: "simultaneous",
     });
-    const dc = input.benefits.find((b) => b.kind === "dc");
-    expect(dc?.receiptYear).toBe(2030);
-    expect(dc?.optimizeReceiptYear).toBe(false);
+    expect(input.benefits.find((b) => b.kind === "company")?.receiptYear).toBe(2020);
+    expect(input.benefits.find((b) => b.kind === "dc")?.receiptYear).toBe(2027);
+  });
+
+  it("uses the one age written onto both benefits", () => {
+    const input = inputFromAnswers({
+      birthYear: 1965,
+      birthMonth: 4,
+      companyIncomeYen: 20_000_000,
+      companyServiceYears: 30,
+      companyReceiptAge: 62,
+      hasDc: true,
+      dcIncomeYen: 10_000_000,
+      dcServiceYears: 20,
+      dcReceiptAge: 62,
+      hasExtra: false,
+      goal: "simultaneous",
+    });
+    expect(input.benefits.find((b) => b.kind === "company")?.receiptYear).toBe(2027);
+    expect(input.benefits.find((b) => b.kind === "dc")?.receiptYear).toBe(2027);
+    expect(input.benefits.find((b) => b.kind === "dc")?.optimizeReceiptYear).toBe(false);
+  });
+
+  it("keeps year-month intervals when the hearing years are unchanged", () => {
+    const intervals = [
+      { start: { year: 2006, month: 1 }, end: { year: 2015, month: 12 } },
+      { start: { year: 2018, month: 1 }, end: { year: 2022, month: 12 } },
+    ];
+    const previous = {
+      ...defaultInput,
+      benefits: defaultInput.benefits.map((benefit) =>
+        benefit.kind === "dc" ? { ...benefit, intervals } : benefit,
+      ),
+    };
+    const answers = answersFromInput(previous);
+    expect(answers.dcServiceYears).toBe(15);
+    const next = inputFromAnswers(answers, previous);
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.intervals).toEqual(intervals);
+  });
+
+  it("drops intervals only when the hearing year count changes", () => {
+    const intervals = [
+      { start: { year: 2006, month: 1 }, end: { year: 2015, month: 12 } },
+      { start: { year: 2018, month: 1 }, end: { year: 2022, month: 12 } },
+    ];
+    const previous = {
+      ...defaultInput,
+      benefits: defaultInput.benefits.map((benefit) =>
+        benefit.kind === "dc" ? { ...benefit, intervals } : benefit,
+      ),
+    };
+    const answers = { ...answersFromInput(previous), dcServiceYears: 16 };
+    const next = inputFromAnswers(answers, previous);
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.intervals).toBeUndefined();
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.serviceYears).toBe(16);
   });
 
   it("appends an extra allowance the user can edit later", () => {
@@ -143,5 +198,100 @@ describe("hearing mapping", () => {
     expect(simulate(parseSimulationInput(previous)).totalTaxYen).toBe(
       simulate(parseSimulationInput(next)).totalTaxYen,
     );
+  });
+});
+
+describe("parseDraft", () => {
+  const base = {
+    birthYear: "1965",
+    birthMonth: "4",
+    companyIncomeYen: "20000000",
+    companyServiceYears: "30",
+    companyReceiptAge: "60",
+    hasDc: true,
+    dcIncomeYen: "10000000",
+    dcServiceYears: "20",
+    dcReceiptAge: "62",
+    hasExtra: false,
+    goal: "simultaneous" as const,
+  };
+
+  it("applies the one simultaneous age to both benefits", () => {
+    const parsed = parseDraft({ ...base, companyReceiptAge: "55" });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.companyReceiptAge).toBe(62);
+    expect(parsed.value.dcReceiptAge).toBe(62);
+    const next = inputFromAnswers(parsed.value);
+    expect(next.benefits.find((benefit) => benefit.kind === "company")?.receiptYear).toBe(2027);
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.receiptYear).toBe(2027);
+  });
+
+  it("keeps a tenure failure on the simultaneous step", () => {
+    const parsed = parseDraft({
+      ...base,
+      companyServiceYears: "61",
+      companyReceiptAge: "75",
+      dcReceiptAge: "60",
+    });
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.errors.companyReceiptAge).toContain("生年月より前");
+    expect(hearingStepForErrors({ hasDc: true, goal: "simultaneous" }, parsed.errors)).toBe("goal");
+  });
+
+  it("uses interval months, not the ceiling year, for the DC age floor", () => {
+    const previous = [
+      {
+        id: "dc",
+        kind: "dc" as const,
+        incomeYen: 10_000_000,
+        intervals: [{ start: { year: 2012, month: 1 }, end: { year: 2019, month: 6 } }],
+        receiptYear: 2027,
+      },
+    ];
+    const draft = {
+      ...base,
+      goal: "sequence" as const,
+      dcServiceYears: "8",
+      dcReceiptAge: "61",
+    };
+    const tooYoung = parseDraft(draft, previous);
+    expect(tooYoung.ok).toBe(false);
+    if (tooYoung.ok) return;
+    expect(tooYoung.errors.dcReceiptAge).toBeTruthy();
+    const allowed = parseDraft({ ...draft, dcReceiptAge: "62" }, previous);
+    expect(allowed.ok).toBe(true);
+  });
+});
+
+describe("hearing goal", () => {
+  const draft = {
+    birthYear: "1965",
+    birthMonth: "4",
+    companyIncomeYen: "20000000",
+    companyServiceYears: "30",
+    companyReceiptAge: "65",
+    hasDc: true,
+    dcIncomeYen: "10000000",
+    dcServiceYears: "20",
+    dcReceiptAge: "70",
+    hasExtra: false,
+    goal: "sequence" as const,
+  };
+
+  it("restores the company age when leaving simultaneous receipt", () => {
+    const shared = hearingGoalChange(draft, "simultaneous", null);
+    expect(shared.draft.companyReceiptAge).toBe("70");
+    expect(shared.draft.dcReceiptAge).toBe("70");
+    expect(shared.companyAgeBeforeShared).toBe("65");
+    const moved = hearingGoalChange(
+      { ...shared.draft, dcReceiptAge: "72", companyReceiptAge: "72" },
+      "sequence",
+      shared.companyAgeBeforeShared,
+    );
+    expect(moved.draft.companyReceiptAge).toBe("65");
+    expect(moved.draft.dcReceiptAge).toBe("72");
+    expect(moved.draft.goal).toBe("sequence");
   });
 });

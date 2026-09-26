@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { dcMinimumReceiptAgeFromMonths } from "./dc-age";
 import { buildThreePatterns } from "./patterns";
+import { defaultRuleset } from "./ruleset";
 import { searchReceiptYears } from "./search";
 import { simulate } from "./simulate";
 import type { BenefitInput, SimulationInput } from "./types";
@@ -40,6 +42,11 @@ describe("T1-T4 video restatement", () => {
     expect(year.residentTaxYen).toBe(750_000);
     expect(year.totalTaxYen).toBe(1_861_869);
     expect(result.totalTaxYen).toBe(1_861_869);
+    const national = year.steps.find((step) => step.code === "national");
+    expect(national?.substituted).toContain("23%");
+    expect(national?.substituted).toContain("速算控除");
+    expect(year.steps.find((step) => step.code === "income")?.substituted).toContain("会社退職金（2030年）");
+    expect(year.steps.find((step) => step.code === "periods")?.substituted).toContain("2001年1月〜2030年12月");
   });
 
   it("T2 company 2030 then DC 2035 is 1,368,544 yen", () => {
@@ -266,5 +273,193 @@ describe("short tenure and F2 / search", () => {
     expect(at2035?.result.totalTaxYen).toBe(1_368_544);
     expect(at2040?.result.totalTaxYen).toBe(1_358_202);
     expect(result.best?.receiptYears.dc).toBe(2038);
+  });
+
+  it("starts the DC search at the deferred age when membership is under 10 years", () => {
+    const result = searchReceiptYears(
+      input([
+        company30,
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 5_000_000,
+          serviceYears: 8,
+          receiptYear: 2030,
+          optimizeReceiptYear: true,
+        },
+      ]),
+    );
+    expect(result.combinationCount).toBe(15);
+    expect(result.hits.some((hit) => hit.receiptYears.dc === 2025)).toBe(false);
+    expect(result.hits.some((hit) => hit.receiptYears.dc === 2026)).toBe(true);
+  });
+
+  it("does not tax a DC year before the floor of contribution cut off at that year", () => {
+    const dc = {
+      id: "dc",
+      kind: "dc" as const,
+      incomeYen: 5_000_000,
+      intervals: [{ start: { year: 2018, month: 1 }, end: { year: 2023, month: 6 } }],
+      receiptYear: 2030,
+      contributionEndAge: 62,
+      optimizeReceiptYear: true,
+    };
+    const searched = searchReceiptYears(input([company30, dc]));
+    expect(searched.hits.some((hit) => hit.receiptYears.dc === 2025)).toBe(false);
+    expect(searched.hits.some((hit) => hit.result.totalTaxYen === 1_237_074)).toBe(false);
+    const patterns = buildThreePatterns(input([company30, dc]));
+    const first = patterns?.find((pattern) => pattern.kind === "dc_first");
+    expect(first?.omittedReason).toBeUndefined();
+    expect(first?.input.benefits.find((benefit) => benefit.kind === "dc")?.receiptYear).toBe(2026);
+    expect(first?.result?.totalTaxYen).not.toBe(1_237_074);
+    expect(first?.result?.totalTaxYen).not.toBeNull();
+  });
+});
+
+describe("receipt age and contribution end", () => {
+  it("does not tax a DC receipt under the eligible age", () => {
+    const result = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          serviceYears: 20,
+          receiptYear: 2024,
+        },
+      ]),
+    );
+    expect(result.years[0]?.status).toBe("receipt_ineligible");
+    expect(result.totalTaxYen).toBeNull();
+  });
+
+  it("does not raise the DC start age by ceiling fractional membership months", () => {
+    expect(dcMinimumReceiptAgeFromMonths(90, defaultRuleset)).toBe(62);
+    expect(dcMinimumReceiptAgeFromMonths(13, defaultRuleset)).toBe(65);
+    expect(dcMinimumReceiptAgeFromMonths(119, defaultRuleset)).toBe(61);
+    expect(dcMinimumReceiptAgeFromMonths(96, defaultRuleset)).toBe(61);
+    expect(dcMinimumReceiptAgeFromMonths(120, defaultRuleset)).toBe(60);
+    const early = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          intervals: [{ start: { year: 2012, month: 1 }, end: { year: 2019, month: 6 } }],
+          receiptYear: 2026,
+        },
+      ]),
+    );
+    expect(early.years[0]?.status).toBe("receipt_ineligible");
+    expect(early.totalTaxYen).toBeNull();
+    expect(early.warnings.some((warning) => warning.message.includes("62歳から"))).toBe(true);
+    const allowed = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          intervals: [{ start: { year: 2012, month: 1 }, end: { year: 2019, month: 6 } }],
+          receiptYear: 2027,
+        },
+      ]),
+    );
+    expect(allowed.years[0]?.status).toBe("ok");
+    expect(allowed.years[0]?.serviceYears).toBe(8);
+    expect(allowed.totalTaxYen).not.toBeNull();
+  });
+
+  it("keeps the other year's tax and does not treat an ineligible receipt as a prior", () => {
+    const company = {
+      id: "company",
+      kind: "company" as const,
+      incomeYen: 20_000_000,
+      serviceYears: 30,
+      receiptYear: 2025,
+    };
+    const dc = {
+      id: "dc",
+      kind: "dc" as const,
+      incomeYen: 10_000_000,
+      serviceYears: 20,
+      receiptYear: 2024,
+    };
+    const alone = simulate(input([company]));
+    const result = simulate(input([company, dc]));
+    const blocked = result.years.find((year) => year.year === 2024);
+    const kept = result.years.find((year) => year.year === 2025);
+    expect(alone.totalTaxYen).toBe(405_702);
+    expect(blocked?.status).toBe("receipt_ineligible");
+    expect(blocked?.totalTaxYen).toBeNull();
+    expect(kept?.status).toBe("ok");
+    expect(kept?.totalTaxYen).toBe(405_702);
+    expect(kept?.deductionAfterAdjustmentYen).toBe(15_000_000);
+    expect(kept?.notes.some((note) => note.includes("DC"))).toBe(false);
+    expect(result.totalTaxYen).toBe(405_702);
+
+    const laterCompany = {
+      id: "company",
+      kind: "company" as const,
+      incomeYen: 8_000_000,
+      serviceYears: 20,
+      receiptYear: 2030,
+    };
+    const later = simulate(input([laterCompany, dc]));
+    expect(simulate(input([laterCompany])).totalTaxYen).toBe(0);
+    expect(later.years.find((year) => year.year === 2030)?.totalTaxYen).toBe(0);
+
+    const sameYearCompany = { ...company, receiptYear: 2024 };
+    const sameYear = simulate(input([sameYearCompany, { ...dc, receiptYear: 2024 }]));
+    expect(sameYear.years).toHaveLength(1);
+    expect(sameYear.years[0]?.status).toBe("ok");
+    expect(sameYear.years[0]?.benefitIds).toEqual(["company"]);
+    expect(sameYear.years[0]?.totalTaxYen).toBe(simulate(input([sameYearCompany])).totalTaxYen);
+    expect(sameYear.warnings.some((warning) => warning.code === "receipt_ineligible")).toBe(true);
+  });
+
+  it("does not extend DC contributions past the receipt year", () => {
+    const withLateEnd = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          serviceYears: 20,
+          receiptYear: 2030,
+          contributionEndAge: 70,
+        },
+      ]),
+    );
+    const plain = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          serviceYears: 20,
+          receiptYear: 2030,
+        },
+      ]),
+    );
+    expect(withLateEnd.totalTaxYen).toBe(plain.totalTaxYen);
+    expect(withLateEnd.warnings.some((warning) => warning.message.includes("受取年を超える拠出"))).toBe(true);
+  });
+
+  it("states the extra membership and deduction when contribution ends by the receipt age", () => {
+    const result = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          intervals: [{ start: { year: 2011, month: 1 }, end: { year: 2020, month: 12 } }],
+          receiptYear: 2030,
+          contributionEndAge: 65,
+        },
+      ]),
+    );
+    expect(result.years[0]?.serviceYears).toBe(20);
+    expect(result.years[0]?.statutoryDeductionYen).toBe(8_000_000);
+    expect(result.warnings.some((warning) => warning.message.includes("見込み受取額は固定"))).toBe(true);
   });
 });
