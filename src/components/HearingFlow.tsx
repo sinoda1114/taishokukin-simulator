@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button, Group, Paper, Stack, Text, Title } from "@mantine/core";
-import type { SimulationInput } from "@/engine";
+import { totalMonths, type SimulationInput } from "@/engine";
 import { IntInput } from "./IntInput";
 import { IntPickerField } from "./IntPickerField";
 import { ReceiptAgeField } from "./ReceiptAgeField";
@@ -17,6 +17,7 @@ import {
 import {
   answersFromInput,
   detailedServiceYears,
+  hearingGoalChange,
   hearingStepErrorKeys,
   hearingStepForErrors,
   inputFromAnswers,
@@ -102,6 +103,7 @@ export function HearingFlow({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [step, setStep] = useState<HearingStepId>("birth");
+  const [companyAgeBeforeShared, setCompanyAgeBeforeShared] = useState<string | null>(null);
   const steps = useMemo(() => visibleHearingSteps(draft.hasDc), [draft.hasDc]);
   const index = Math.max(0, steps.indexOf(step));
   const copy = STEP_COPY[step];
@@ -123,9 +125,14 @@ export function HearingFlow({
   const prevDc = initial.benefits.find((benefit) => benefit.kind === "dc");
   const dcServiceParsed = parseServiceYears(draft.dcServiceYears, "拠出年数");
   const dcServiceYears = dcServiceParsed.ok ? dcServiceParsed.value : 10;
+  const dcMembershipMonths =
+    keepsDetailedIntervals(prevDc, dcServiceYears) && prevDc?.intervals
+      ? totalMonths(prevDc.intervals)
+      : undefined;
   const sharedAge = parseReceiptAge(draft.dcReceiptAge, birthYear, {
     kind: "dc",
     serviceYears: dcServiceYears,
+    membershipMonths: dcMembershipMonths,
   });
   const sharedYear =
     birthYear !== null && sharedAge.ok ? receiptYearFromAge(birthYear, sharedAge.value) : null;
@@ -159,6 +166,19 @@ export function HearingFlow({
     }
     if (!validateCurrentStep()) return;
     setStep(next);
+  }
+
+  function chooseGoal(goal: HearingDraft["goal"]) {
+    const next = hearingGoalChange(draft, goal, companyAgeBeforeShared);
+    setDraft(next.draft);
+    setCompanyAgeBeforeShared(next.companyAgeBeforeShared);
+    setErrors((prev) => {
+      if (!prev.companyReceiptAge && !prev.dcReceiptAge) return prev;
+      const cleared = { ...prev };
+      delete cleared.companyReceiptAge;
+      delete cleared.dcReceiptAge;
+      return cleared;
+    });
   }
 
   function goBack() {
@@ -293,6 +313,7 @@ export function HearingFlow({
               birthYear={birthYear}
               kind="dc"
               serviceYears={dcServiceYears}
+              membershipMonths={dcMembershipMonths}
               error={errors.dcReceiptAge}
               onChange={(dcReceiptAge) => patch("dcReceiptAge", dcReceiptAge)}
             />
@@ -320,26 +341,10 @@ export function HearingFlow({
         {step === "goal" ? (
           <Stack gap="sm">
             <div className="choice-row" role="group" aria-label="見たい比較">
-              <Choice
-                selected={draft.goal === "simultaneous"}
-                onClick={() => {
-                  setDraft((prev) => ({
-                    ...prev,
-                    goal: "simultaneous",
-                    companyReceiptAge: prev.dcReceiptAge,
-                  }));
-                  setErrors((prev) => {
-                    if (!prev.companyReceiptAge && !prev.dcReceiptAge) return prev;
-                    const next = { ...prev };
-                    delete next.companyReceiptAge;
-                    delete next.dcReceiptAge;
-                    return next;
-                  });
-                }}
-              >
+              <Choice selected={draft.goal === "simultaneous"} onClick={() => chooseGoal("simultaneous")}>
                 同時受取
               </Choice>
-              <Choice selected={draft.goal === "sequence"} onClick={() => patch("goal", "sequence")}>
+              <Choice selected={draft.goal === "sequence"} onClick={() => chooseGoal("sequence")}>
                 先後の比較
               </Choice>
             </div>
@@ -354,6 +359,7 @@ export function HearingFlow({
                   birthYear={birthYear}
                   kind="dc"
                   serviceYears={dcServiceYears}
+                  membershipMonths={dcMembershipMonths}
                   error={errors.dcReceiptAge ?? errors.companyReceiptAge}
                   onChange={(age) => {
                     setDraft((prev) => ({

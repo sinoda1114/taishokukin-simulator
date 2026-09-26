@@ -369,33 +369,52 @@ describe("receipt age and contribution end", () => {
     expect(allowed.totalTaxYen).not.toBeNull();
   });
 
-  it("keeps tax in years that are not the ineligible benefit", () => {
-    const result = simulate(
-      input([
-        {
-          id: "company",
-          kind: "company",
-          incomeYen: 20_000_000,
-          serviceYears: 30,
-          receiptYear: 2025,
-        },
-        {
-          id: "dc",
-          kind: "dc",
-          incomeYen: 10_000_000,
-          serviceYears: 20,
-          receiptYear: 2024,
-        },
-      ]),
-    );
+  it("keeps the other year's tax and does not treat an ineligible receipt as a prior", () => {
+    const company = {
+      id: "company",
+      kind: "company" as const,
+      incomeYen: 20_000_000,
+      serviceYears: 30,
+      receiptYear: 2025,
+    };
+    const dc = {
+      id: "dc",
+      kind: "dc" as const,
+      incomeYen: 10_000_000,
+      serviceYears: 20,
+      receiptYear: 2024,
+    };
+    const alone = simulate(input([company]));
+    const result = simulate(input([company, dc]));
     const blocked = result.years.find((year) => year.year === 2024);
     const kept = result.years.find((year) => year.year === 2025);
+    expect(alone.totalTaxYen).toBe(405_702);
     expect(blocked?.status).toBe("receipt_ineligible");
     expect(blocked?.totalTaxYen).toBeNull();
     expect(kept?.status).toBe("ok");
-    expect(kept?.totalTaxYen).not.toBeNull();
-    expect(kept?.notes.some((note) => note.includes("受取できない"))).toBe(false);
-    expect(result.totalTaxYen).toBe(kept?.totalTaxYen);
+    expect(kept?.totalTaxYen).toBe(405_702);
+    expect(kept?.deductionAfterAdjustmentYen).toBe(15_000_000);
+    expect(kept?.notes.some((note) => note.includes("DC"))).toBe(false);
+    expect(result.totalTaxYen).toBe(405_702);
+
+    const laterCompany = {
+      id: "company",
+      kind: "company" as const,
+      incomeYen: 8_000_000,
+      serviceYears: 20,
+      receiptYear: 2030,
+    };
+    const later = simulate(input([laterCompany, dc]));
+    expect(simulate(input([laterCompany])).totalTaxYen).toBe(0);
+    expect(later.years.find((year) => year.year === 2030)?.totalTaxYen).toBe(0);
+
+    const sameYearCompany = { ...company, receiptYear: 2024 };
+    const sameYear = simulate(input([sameYearCompany, { ...dc, receiptYear: 2024 }]));
+    expect(sameYear.years).toHaveLength(1);
+    expect(sameYear.years[0]?.status).toBe("ok");
+    expect(sameYear.years[0]?.benefitIds).toEqual(["company"]);
+    expect(sameYear.years[0]?.totalTaxYen).toBe(simulate(input([sameYearCompany])).totalTaxYen);
+    expect(sameYear.warnings.some((warning) => warning.code === "receipt_ineligible")).toBe(true);
   });
 
   it("does not extend DC contributions past the receipt year", () => {

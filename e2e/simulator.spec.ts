@@ -366,6 +366,61 @@ test("simultaneous receipt shows the shared age before the result", async ({ pag
   await expect(page.getByText("2027年").first()).toBeVisible();
 });
 
+test("leaving simultaneous receipt restores the company age", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "次へ" }).click();
+  const companyAge = page.getByRole("textbox", { name: "受取年齢" });
+  await companyAge.click();
+  await companyAge.fill("65");
+  await page.getByRole("option", { name: "65歳" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  const dcAge = page.getByRole("textbox", { name: "受取年齢" });
+  await dcAge.click();
+  await dcAge.fill("70");
+  await page.getByRole("option", { name: "70歳" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "同時受取" }).click();
+  await expect(page.getByText("会社も DC も、70歳（2035年）で受け取ります。")).toBeVisible();
+  await page.getByRole("button", { name: "先後の比較" }).click();
+  await expect(page.getByText("会社は65歳、DC は70歳のまま比べます。")).toBeVisible();
+  await page.getByRole("button", { name: "結果を見る" }).click();
+  await expect(page.getByText("2030年").first()).toBeVisible();
+  await expect(page.getByText("2035年").first()).toBeVisible();
+});
+
+test("hearing keeps the month-based DC age floor when intervals remain", async ({ page }) => {
+  await startFromInputs(page);
+  await page.getByRole("checkbox", { name: "勤続期間を年月で入れる" }).nth(1).check();
+  const startYear = page.getByRole("textbox", { name: "開始年", exact: true });
+  await startYear.click();
+  await startYear.fill("2012");
+  await page.getByRole("option", { name: "2012年" }).click();
+  const endYear = page.getByRole("textbox", { name: "終了年", exact: true });
+  await endYear.click();
+  await endYear.fill("2019");
+  await page.getByRole("option", { name: "2019年" }).click();
+  const endMonth = page.getByRole("textbox", { name: "終了月", exact: true });
+  await endMonth.click();
+  await endMonth.fill("6");
+  await page.getByRole("option", { name: "6月" }).click();
+  await page.getByRole("button", { name: "質問に戻る" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await expect(page.getByText("加入年数が短いため、62歳から75歳です。")).toBeVisible();
+  const age = page.getByRole("textbox", { name: "受取年齢" });
+  await age.click();
+  await expect(page.getByRole("option", { name: "61歳" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "次へ" }).click();
+  await expect(
+    page.getByRole("heading", { name: "iDeCo か企業型 DC の一時金について教えてください" }),
+  ).toBeVisible();
+  await expect(page.getByText("受取年齢は62〜75の範囲で入れてください")).toBeVisible();
+});
+
 test("DC age floor follows unrounded membership months", async ({ page }) => {
   await startFromInputs(page);
   await page.getByRole("checkbox", { name: "勤続期間を年月で入れる" }).nth(1).check();

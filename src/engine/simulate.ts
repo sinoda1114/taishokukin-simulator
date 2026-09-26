@@ -449,28 +449,33 @@ export function simulate(
   const years = [...byYear.keys()].sort((a, b) => a - b);
   const priors: PriorLump[] = [];
   const yearResults: YearTaxResult[] = [];
-  const blockedByYear = new Map<number, string[]>();
+  const ineligibleIds = new Set<string>();
+  const blockedMessages: string[] = [];
   for (const benefit of resolved) {
     const message = receiptBlockMessage(benefit, input.birthYearMonth, ruleset);
     if (!message) continue;
-    const list = blockedByYear.get(benefit.receiptYear) ?? [];
-    list.push(message);
-    blockedByYear.set(benefit.receiptYear, list);
+    ineligibleIds.add(benefit.id);
+    blockedMessages.push(message);
   }
+  const blockedOnlyYears = new Set<number>();
 
   for (const year of years) {
     const current = byYear.get(year) ?? [];
+    const eligible = current.filter((benefit) => !ineligibleIds.has(benefit.id));
+    const counted = eligible.length > 0 ? eligible : current;
+    if (eligible.length === 0) blockedOnlyYears.add(year);
     const result = computeYear({
       year,
-      current,
+      current: counted,
       priors,
       ruleMode: input.ruleMode,
       ruleset,
     });
     yearResults.push(result);
+    if (eligible.length === 0) continue;
 
     const grouped = new Map<AdjustmentCategory, ResolvedBenefit[]>();
-    for (const benefit of current) {
+    for (const benefit of eligible) {
       const cat = categoryOf(benefit.kind);
       const list = grouped.get(cat) ?? [];
       list.push(benefit);
@@ -495,7 +500,6 @@ export function simulate(
         "小規模企業共済は一般の退職金と同じ式で計算します。任意解約が退職所得にならない場合があります。受取年は自動では動かしません。",
     });
   }
-  const blockedMessages = [...blockedByYear.values()].flat();
   if (blockedMessages.length > 0) {
     warnings.push({ code: "receipt_ineligible", message: blockedMessages.join("") });
   }
@@ -513,10 +517,11 @@ export function simulate(
     });
   }
 
-  const hadShortTenure = yearResults.some((year) => year.status === "tenure_out_of_scope");
+  const hadShortTenure = yearResults.some(
+    (year) => !blockedOnlyYears.has(year.year) && year.status === "tenure_out_of_scope",
+  );
   const pricedYears = yearResults.map((year) => {
-    const messages = blockedByYear.get(year.year);
-    if (!messages || messages.length === 0 || year.status === "tenure_out_of_scope") return year;
+    if (!blockedOnlyYears.has(year.year)) return year;
     return {
       ...year,
       status: "receipt_ineligible" as const,

@@ -214,12 +214,14 @@ function parseTriplet(
   birthYear: number | null,
   serviceLabel: string,
   kind: "company" | "dc",
+  membershipMonths?: number,
 ): TripletOk | TripletErr {
   const income = parseIncomeYen(raw.income);
   const service = parseServiceYears(raw.service, serviceLabel);
   const age = parseReceiptAge(raw.age, birthYear, {
     kind,
     serviceYears: service.ok ? service.value : undefined,
+    membershipMonths: service.ok ? membershipMonths : undefined,
   });
   const errors: Record<string, string> = {};
   if (!income.ok) errors[keys.income] = income.error;
@@ -227,6 +229,35 @@ function parseTriplet(
   if (!age.ok) errors[keys.age] = age.error;
   if (!income.ok || !service.ok || !age.ok) return { ok: false, errors };
   return { ok: true, income: income.value, service: service.value, age: age.value };
+}
+
+function keptMembershipMonths(benefit: BenefitInput | undefined, serviceRaw: string): number | undefined {
+  const service = parseServiceYears(serviceRaw, "年数");
+  if (!service.ok || !benefit?.intervals || benefit.intervals.length === 0) return undefined;
+  if (!keepsDetailedIntervals(benefit, service.value)) return undefined;
+  return totalMonths(benefit.intervals);
+}
+
+export function hearingGoalChange(
+  draft: HearingDraft,
+  goal: HearingGoal,
+  companyAgeBeforeShared: string | null,
+): { draft: HearingDraft; companyAgeBeforeShared: string | null } {
+  if (goal === "simultaneous") {
+    return {
+      draft: { ...draft, goal, companyReceiptAge: draft.dcReceiptAge },
+      companyAgeBeforeShared:
+        draft.goal === "simultaneous" ? companyAgeBeforeShared : draft.companyReceiptAge,
+    };
+  }
+  return {
+    draft: {
+      ...draft,
+      goal,
+      companyReceiptAge: companyAgeBeforeShared ?? draft.companyReceiptAge,
+    },
+    companyAgeBeforeShared: null,
+  };
 }
 
 function tenureConflict(
@@ -267,6 +298,7 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
     "company",
   );
   if (!company.ok) Object.assign(nextErrors, company.errors);
+  const dcMonths = keptMembershipMonths(prevDc, draft.dcServiceYears);
   const dc = draft.hasDc
     ? parseTriplet(
         { income: draft.dcIncomeYen, service: draft.dcServiceYears, age: draft.dcReceiptAge },
@@ -274,6 +306,7 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
         birthY.ok ? birthY.value : null,
         "拠出年数",
         "dc",
+        dcMonths,
       )
     : null;
   if (dc && !dc.ok) Object.assign(nextErrors, dc.errors);

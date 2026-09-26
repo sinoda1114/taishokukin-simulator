@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultInput } from "./default-input";
 import {
   answersFromInput,
+  hearingGoalChange,
   hearingStepForErrors,
   inputFromAnswers,
   nextHearingStep,
@@ -237,5 +238,60 @@ describe("parseDraft", () => {
     if (parsed.ok) return;
     expect(parsed.errors.companyReceiptAge).toContain("生年月より前");
     expect(hearingStepForErrors({ hasDc: true, goal: "simultaneous" }, parsed.errors)).toBe("goal");
+  });
+
+  it("uses interval months, not the ceiling year, for the DC age floor", () => {
+    const previous = [
+      {
+        id: "dc",
+        kind: "dc" as const,
+        incomeYen: 10_000_000,
+        intervals: [{ start: { year: 2012, month: 1 }, end: { year: 2019, month: 6 } }],
+        receiptYear: 2027,
+      },
+    ];
+    const draft = {
+      ...base,
+      goal: "sequence" as const,
+      dcServiceYears: "8",
+      dcReceiptAge: "61",
+    };
+    const tooYoung = parseDraft(draft, previous);
+    expect(tooYoung.ok).toBe(false);
+    if (tooYoung.ok) return;
+    expect(tooYoung.errors.dcReceiptAge).toBeTruthy();
+    const allowed = parseDraft({ ...draft, dcReceiptAge: "62" }, previous);
+    expect(allowed.ok).toBe(true);
+  });
+});
+
+describe("hearing goal", () => {
+  const draft = {
+    birthYear: "1965",
+    birthMonth: "4",
+    companyIncomeYen: "20000000",
+    companyServiceYears: "30",
+    companyReceiptAge: "65",
+    hasDc: true,
+    dcIncomeYen: "10000000",
+    dcServiceYears: "20",
+    dcReceiptAge: "70",
+    hasExtra: false,
+    goal: "sequence" as const,
+  };
+
+  it("restores the company age when leaving simultaneous receipt", () => {
+    const shared = hearingGoalChange(draft, "simultaneous", null);
+    expect(shared.draft.companyReceiptAge).toBe("70");
+    expect(shared.draft.dcReceiptAge).toBe("70");
+    expect(shared.companyAgeBeforeShared).toBe("65");
+    const moved = hearingGoalChange(
+      { ...shared.draft, dcReceiptAge: "72", companyReceiptAge: "72" },
+      "sequence",
+      shared.companyAgeBeforeShared,
+    );
+    expect(moved.draft.companyReceiptAge).toBe("65");
+    expect(moved.draft.dcReceiptAge).toBe("72");
+    expect(moved.draft.goal).toBe("sequence");
   });
 });
