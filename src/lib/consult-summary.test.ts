@@ -64,40 +64,73 @@ describe("buildConsultSummary", () => {
       preAmendment: screen.preAmendment!,
       postAmendment: screen.postAmendment!,
     });
+    const panel = readFileSync(new URL("../components/ResultPanel.tsx", import.meta.url), "utf8");
+    expect(panel).not.toContain('> 0 ? "+"');
+    expect(panel).not.toContain("推奨の税額");
+    expect(panel).not.toContain("同時との差");
     expect(view.recommended).not.toBeNull();
-    expect(summary).toContain(`推奨の税額: ${formatYen(view.recommended?.tax ?? null)}`);
-    expect(summary).toContain(`推奨の手取り: ${formatYen(view.recommended?.net ?? null)}`);
+    expect(view.recommended?.taxLine.startsWith("税額 ")).toBe(true);
+    expect(view.recommended?.netLine.startsWith("手取り ")).toBe(true);
+    expect(summary).toContain(view.recommended?.taxLine);
+    expect(summary).toContain(view.recommended?.netLine);
+    expect(summary).not.toContain("推奨の税額");
     expect(view.nextBest).not.toBeNull();
-    expect(summary).toContain(
-      `次善策: ${view.nextBest?.caption} 税額 ${formatYen(view.nextBest?.tax ?? null)} 手取り ${formatYen(view.nextBest?.net ?? null)}`,
-    );
-    expect(view.simultaneousDelta).not.toBeNull();
-    expect(view.simultaneousDelta).not.toBe(0);
-    const delta = view.simultaneousDelta ?? 0;
-    expect(summary).toContain(`同時受取との差額 ${delta > 0 ? "+" : ""}${formatYen(delta)}`);
-    expect(summary).toContain(
-      `改正前に固定 税額 ${formatYen(view.preFixedTax)} 手取り ${formatYen(view.preFixedNet)}`,
-    );
-    expect(summary).toContain(
-      `改正後に固定 税額 ${formatYen(view.postFixedTax)} 手取り ${formatYen(view.postFixedNet)}`,
-    );
-    expect(summary).toContain(
-      `差額（改正後 − 改正前） ${view.amendmentDelta === null ? "—" : `${view.amendmentDelta > 0 ? "+" : ""}${formatYen(view.amendmentDelta)}`}`,
-    );
+    expect(view.nextBest?.line).toContain("／ 税額 ");
+    expect(view.nextBest?.line).toContain("／ 手取り ");
+    expect(summary).toContain(view.nextBest?.line);
+    expect(view.simultaneousLine).not.toBeNull();
+    expect(summary).toContain(view.simultaneousLine);
+    expect(summary).toContain(view.preFixedLabel);
+    expect(summary).toContain(view.preFixedAmount);
+    expect(summary).toContain(view.preFixedNetLine);
+    expect(summary).toContain(view.postFixedAmount);
+    expect(summary).toContain(view.postFixedNetLine);
+    expect(summary).toContain(view.amendmentDeltaLine);
+    expect(summary).not.toContain("改正前に固定 税額");
     expect(view.cards).toHaveLength(3);
+    expect(view.cards?.some((card) => card.deltaLine !== null)).toBe(true);
     for (const card of view.cards ?? []) {
-      const taxText = card.pattern.omittedReason ? "—" : formatYen(card.tax);
-      expect(summary).toContain(`- ${card.pattern.label}: ${card.years} 税額 ${taxText}`);
+      expect(summary).toContain(card.line);
+      if (card.deltaLine) expect(card.line).toContain(card.deltaLine);
+      if (card.omittedLine) expect(card.line).toContain(card.omittedLine);
     }
-    expect(view.searchBestLine).not.toBeNull();
-    expect(summary).toContain(`${view.searchBestLine} 税額 ${formatYen(view.searchBestTax)}`);
+    expect(view.searchBestText).not.toBeNull();
+    expect(view.searchBestText).toContain("／");
+    expect(summary).toContain(view.searchBestText);
     expect(view.searchRows.length).toBeGreaterThan(0);
     for (const row of view.searchRows) {
-      expect(summary).toContain(`- ${row.caption} 税額 ${formatYen(row.tax)}`);
+      expect(summary).toContain(row.line);
+      expect(row.line).toContain(row.taxText);
     }
     const formula = screen.result?.years[0]?.steps[0]?.formula ?? "";
     expect(formula.length).toBeGreaterThan(0);
     expect(summary).not.toContain(formula);
+  });
+
+  it("includes an omitted pattern reason in the same line as its tax", () => {
+    const screen = resultsScreen({
+      ...defaultInput,
+      benefits: [
+        { ...defaultInput.benefits[0]!, optimizeReceiptYear: false },
+        { ...defaultInput.benefits[1]!, receiptYear: 2020, optimizeReceiptYear: false },
+      ],
+    });
+    const summary = buildConsultSummary(screen);
+    const view = buildResultView({
+      result: screen.result!,
+      patterns: screen.patterns,
+      search: screen.search,
+      benefits: screen.benefits,
+      birth: { year: 1965, month: 4 },
+      ruleMode: screen.ruleMode,
+      preAmendment: screen.preAmendment!,
+      postAmendment: screen.postAmendment!,
+    });
+    const omitted = view.cards?.find((card) => card.omittedLine);
+    expect(omitted?.omittedLine).toBeTruthy();
+    expect(omitted?.line).toContain(omitted?.omittedLine);
+    expect(omitted?.line).not.toContain("— —");
+    expect(summary).toContain(omitted?.line);
   });
 
   it("keeps the hidden-tax sentence in one place", () => {

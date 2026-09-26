@@ -45,8 +45,7 @@ export function ResultPanel({
     currentCaption,
     recommended,
     nextBest,
-    simultaneousDelta,
-    amendmentDelta,
+    simultaneousLine,
     showTax,
     taxNotice,
     disclaimer,
@@ -54,17 +53,19 @@ export function ResultPanel({
     yearRows,
     amendmentTitle,
     amendmentLead,
-    preFixedTax,
-    preFixedNet,
-    postFixedTax,
-    postFixedNet,
+    preFixedLabel,
+    preFixedAmount,
+    preFixedNetLine,
+    postFixedLabel,
+    postFixedAmount,
+    postFixedNetLine,
+    amendmentDeltaLine,
     patternTitle,
     patternLead,
     regimeLine,
     periods,
     searchNote,
-    searchBestLine,
-    searchBestTax,
+    searchBestText,
     searchRows,
   } = view;
   const line = useMemo(
@@ -107,11 +108,11 @@ export function ResultPanel({
                 {recommended.caption}
               </Text>
               <Text size="sm" c="dimmed" mt="xs">
-                税額
+                {recommended.taxLabel}
               </Text>
-              <Text className="figure yen">{formatYen(recommended.tax)}</Text>
+              <Text className="figure yen">{recommended.taxText}</Text>
               <Text size="sm" c="dimmed" mt="xs">
-                手取り {formatYen(recommended.net)}
+                {recommended.netLine}
               </Text>
             </div>
           ) : null}
@@ -123,14 +124,12 @@ export function ResultPanel({
         ) : null}
         {nextBest ? (
           <Text size="sm" mt="sm">
-            次善策: {nextBest.caption} ／ 税額 <span className="yen">{formatYen(nextBest.tax)}</span> ／ 手取り{" "}
-            <span className="yen">{formatYen(nextBest.net)}</span>
+            {nextBest.line}
           </Text>
         ) : null}
-        {simultaneousDelta !== null && simultaneousDelta !== 0 ? (
+        {simultaneousLine ? (
           <Text size="sm" mt={4} className="yen">
-            同時受取との差額 {simultaneousDelta > 0 ? "+" : ""}
-            {formatYen(simultaneousDelta)}
+            {simultaneousLine}
           </Text>
         ) : null}
         <Text size="sm" mt="sm" lh={1.6}>
@@ -166,27 +165,26 @@ export function ResultPanel({
         </Text>
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
           <div className="ledger-cell">
-            <Text fw={600}>改正前に固定</Text>
+            <Text fw={600}>{preFixedLabel}</Text>
             <Text className="yen" fw={600} fz={20} mt="xs">
-              {formatYen(preFixedTax)}
+              {preFixedAmount}
             </Text>
             <Text size="sm" c="dimmed" mt={4}>
-              手取り {formatYen(preFixedNet)}
+              {preFixedNetLine}
             </Text>
           </div>
           <div className="ledger-cell">
-            <Text fw={600}>改正後に固定</Text>
+            <Text fw={600}>{postFixedLabel}</Text>
             <Text className="yen" fw={600} fz={20} mt="xs">
-              {formatYen(postFixedTax)}
+              {postFixedAmount}
             </Text>
             <Text size="sm" c="dimmed" mt={4}>
-              手取り {formatYen(postFixedNet)}
+              {postFixedNetLine}
             </Text>
           </div>
         </SimpleGrid>
         <Text size="sm" mt="sm" className="yen">
-          差額（改正後 − 改正前）{" "}
-          {amendmentDelta === null ? "—" : `${amendmentDelta > 0 ? "+" : ""}${formatYen(amendmentDelta)}`}
+          {amendmentDeltaLine}
         </Text>
         <Text size="sm" mt={4} c="var(--ink-muted)">
           受取年で自動にすると、{regimeLine}。
@@ -200,17 +198,18 @@ export function ResultPanel({
             {patternLead}
           </Text>
           <PatternBars
-            rows={cards.map(({ pattern, tax, isBest, years }) => ({
+            rows={cards.map(({ pattern, tax, isBest, years, taxText, omittedLine }) => ({
               key: pattern.kind,
               label: pattern.label,
               years,
               tax,
+              taxText,
               isBest,
-              omitted: pattern.omittedReason,
+              omittedLine,
             }))}
           />
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="lg" mt="md">
-            {cards.map(({ pattern, tax, delta, isBest, years }) => (
+            {cards.map(({ pattern, taxText, deltaLine, omittedLine, isBest, years }) => (
               <div key={pattern.kind} className={isBest ? "ledger-cell is-best" : "ledger-cell"}>
                 <Group justify="space-between" gap="xs" wrap="nowrap">
                   <Text fw={600} style={{ wordBreak: "keep-all" }}>
@@ -226,17 +225,16 @@ export function ResultPanel({
                   {years}
                 </Text>
                 <Text className="yen" fw={600} fz={20} mt="xs">
-                  {pattern.omittedReason ? "—" : formatYen(tax)}
+                  {taxText}
                 </Text>
-                {delta !== null && delta !== 0 ? (
+                {deltaLine ? (
                   <Text size="sm" c="dimmed" mt={4} className="yen">
-                    同時との差 {delta > 0 ? "+" : ""}
-                    {formatYen(delta)}
+                    {deltaLine}
                   </Text>
                 ) : null}
-                {pattern.omittedReason ? (
+                {omittedLine ? (
                   <Text size="sm" mt="xs" c="var(--ink-muted)">
-                    — {pattern.omittedReason}
+                    {omittedLine}
                   </Text>
                 ) : null}
               </div>
@@ -318,9 +316,9 @@ export function ResultPanel({
               {searchNote}
             </Text>
           )}
-          {searchBestLine ? (
+          {searchBestText ? (
             <Text mt="sm" size="sm">
-              {searchBestLine} ／ <span className="yen">{formatYen(searchBestTax)}</span>
+              {searchBestText}
             </Text>
           ) : null}
           {line ? (
@@ -344,7 +342,7 @@ export function ResultPanel({
                 {searchRows.map((row, index) => (
                   <Table.Tr key={`${row.caption}-${index}`} className={index === 0 ? "is-best-row" : undefined}>
                     <Table.Td>{row.caption}</Table.Td>
-                    <Table.Td className="yen">{formatYen(row.tax)}</Table.Td>
+                    <Table.Td className="yen">{row.taxText}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>

@@ -17,6 +17,10 @@ export type PatternCardView = {
   delta: number | null;
   isBest: boolean;
   years: string;
+  taxText: string;
+  deltaLine: string | null;
+  omittedLine: string | null;
+  line: string;
 };
 
 export type RecommendedView = {
@@ -24,12 +28,17 @@ export type RecommendedView = {
   caption: string;
   tax: number | null;
   net: number | null;
+  taxLabel: string;
+  taxText: string;
+  taxLine: string;
+  netLine: string;
 };
 
 export type NextBestView = {
   caption: string;
   tax: number | null;
   net: number | null;
+  line: string;
 };
 
 export type YearRowView = {
@@ -56,6 +65,14 @@ export type ResultView = {
   preFixedNet: number | null;
   postFixedTax: number | null;
   postFixedNet: number | null;
+  preFixedLabel: string;
+  preFixedAmount: string;
+  preFixedNetLine: string;
+  postFixedLabel: string;
+  postFixedAmount: string;
+  postFixedNetLine: string;
+  amendmentDeltaLine: string;
+  simultaneousLine: string | null;
   patternTitle: string | null;
   patternLead: string | null;
   screenLines: string[];
@@ -64,8 +81,13 @@ export type ResultView = {
   searchNote: string | null;
   searchBestLine: string | null;
   searchBestTax: number | null;
-  searchRows: { caption: string; tax: number | null }[];
+  searchBestText: string | null;
+  searchRows: { caption: string; tax: number | null; taxText: string; line: string }[];
 };
+
+const TAX_LABEL = "税額";
+const PRE_FIXED_LABEL = "改正前に固定";
+const POST_FIXED_LABEL = "改正後に固定";
 
 const SHORT_TENURE_TAX_NOTICE = "勤続5年以下の手当があるため、税額は出していません。";
 const DISCLAIMER =
@@ -94,6 +116,25 @@ function amendmentLead(ruleModeLabel: string): string {
 
 function signedYen(delta: number): string {
   return `${delta > 0 ? "+" : ""}${formatYen(delta)}`;
+}
+
+function moneyLines(base: { title: string; caption: string; tax: number | null; net: number | null }): RecommendedView {
+  const taxText = formatYen(base.tax);
+  const netLine = `手取り ${formatYen(base.net)}`;
+  return {
+    ...base,
+    taxLabel: TAX_LABEL,
+    taxText,
+    taxLine: `${TAX_LABEL} ${taxText}`,
+    netLine,
+  };
+}
+
+function nextBestLine(base: { caption: string; tax: number | null; net: number | null }): NextBestView {
+  return {
+    ...base,
+    line: `次善策: ${base.caption} ／ 税額 ${formatYen(base.tax)} ／ 手取り ${formatYen(base.net)}`,
+  };
 }
 
 function buildYearRows(years: SimulationResult["years"]): YearRowView[] {
@@ -152,12 +193,21 @@ function patternCards(patterns: PatternComparison[]): PatternCardView[] {
   return patterns.map((pattern) => {
     const tax = pattern.omittedReason ? null : (pattern.result?.totalTaxYen ?? null);
     const delta = tax !== null && baselineTax != null ? tax - baselineTax : null;
+    const years = benefitYearList(pattern.input.benefits);
+    const taxText = pattern.omittedReason ? "—" : formatYen(tax);
+    const deltaLine = delta !== null && delta !== 0 ? `同時との差 ${signedYen(delta)}` : null;
+    const omittedLine = pattern.omittedReason ? `— ${pattern.omittedReason}` : null;
+    const line = `- ${pattern.label}: ${years} ${[omittedLine ?? taxText, deltaLine].filter((part): part is string => part !== null).join(" ")}`;
     return {
       pattern,
       tax,
       delta,
       isBest: bestTax !== null && tax === bestTax && !pattern.omittedReason,
-      years: benefitYearList(pattern.input.benefits),
+      years,
+      taxText,
+      deltaLine,
+      omittedLine,
+      line,
     };
   });
 }
@@ -193,27 +243,27 @@ export function buildResultView(args: {
   const currentCaption = benefitYearList(benefits);
   const bestCard = cards?.find((card) => card.isBest && card.tax !== null);
   const recommended = search?.best
-    ? {
+    ? moneyLines({
         title: "推奨案（探索全体の最小）",
         caption: receiptCaption(search.best.receiptYears, benefits),
         tax: search.best.result.totalTaxYen,
         net: search.best.result.totalNetYen,
-      }
+      })
     : bestCard
-      ? {
+      ? moneyLines({
           title: "推奨案（3案の中で最小）",
           caption: benefitYearList(bestCard.pattern.input.benefits),
           tax: bestCard.tax,
           net: bestCard.pattern.result?.totalNetYen ?? null,
-        }
+        })
       : null;
   const nextBest =
     search && search.hits.length > 1
-      ? {
+      ? nextBestLine({
           caption: receiptCaption(search.hits[1].receiptYears, benefits),
           tax: search.hits[1].result.totalTaxYen,
           net: search.hits[1].result.totalNetYen,
-        }
+        })
       : null;
   const simultaneous = patterns?.find((pattern) => pattern.kind === "simultaneous" && !pattern.omittedReason);
   const comparedTax = recommended?.tax ?? result.totalTaxYen;
@@ -242,37 +292,21 @@ export function buildResultView(args: {
     ? `探索全体の最小: ${receiptCaption(search.best.receiptYears, benefits)}`
     : null;
   const searchBestTax = search?.best?.result.totalTaxYen ?? null;
-  const searchRows = (search?.hits.slice(0, 8) ?? []).map((hit) => ({
-    caption: receiptCaption(hit.receiptYears, benefits),
-    tax: hit.result.totalTaxYen,
-  }));
-  const recommendedLines = recommended
-    ? [
-        `${recommended.title}: ${recommended.caption}`,
-        `推奨の税額: ${formatYen(recommended.tax)}`,
-        `推奨の手取り: ${formatYen(recommended.net)}`,
-      ]
-    : [];
-  const nextBestLines = nextBest
-    ? [`次善策: ${nextBest.caption} 税額 ${formatYen(nextBest.tax)} 手取り ${formatYen(nextBest.net)}`]
-    : [];
-  const simultaneousLines =
-    simultaneousDelta !== null && simultaneousDelta !== 0
-      ? [`同時受取との差額 ${signedYen(simultaneousDelta)}`]
-      : [];
-  const amendmentAmountLines = [
-    `改正前に固定 税額 ${formatYen(preFixedTax)} 手取り ${formatYen(preFixedNet)}`,
-    `改正後に固定 税額 ${formatYen(postFixedTax)} 手取り ${formatYen(postFixedNet)}`,
-    `差額（改正後 − 改正前） ${amendmentDelta === null ? "—" : signedYen(amendmentDelta)}`,
-  ];
-  const patternTaxLines = (cards ?? []).map((card) => {
-    const taxText = card.pattern.omittedReason ? "—" : formatYen(card.tax);
-    return `- ${card.pattern.label}: ${card.years} 税額 ${taxText}`;
+  const searchBestText = searchBestLine ? `${searchBestLine} ／ ${formatYen(searchBestTax)}` : null;
+  const searchRows = (search?.hits.slice(0, 8) ?? []).map((hit) => {
+    const caption = receiptCaption(hit.receiptYears, benefits);
+    const taxText = formatYen(hit.result.totalTaxYen);
+    return { caption, tax: hit.result.totalTaxYen, taxText, line: `${caption} ${taxText}` };
   });
-  const searchTaxLines = [
-    ...(searchBestLine ? [`${searchBestLine} 税額 ${formatYen(searchBestTax)}`] : []),
-    ...searchRows.map((row) => `- ${row.caption} 税額 ${formatYen(row.tax)}`),
-  ];
+  const preFixedAmount = formatYen(preFixedTax);
+  const preFixedNetLine = `手取り ${formatYen(preFixedNet)}`;
+  const postFixedAmount = formatYen(postFixedTax);
+  const postFixedNetLine = `手取り ${formatYen(postFixedNet)}`;
+  const simultaneousLine =
+    simultaneousDelta !== null && simultaneousDelta !== 0
+      ? `同時受取との差額 ${signedYen(simultaneousDelta)}`
+      : null;
+  const amendmentDeltaLine = `差額（改正後 − 改正前） ${amendmentDelta === null ? "—" : signedYen(amendmentDelta)}`;
   return {
     cards,
     currentCaption,
@@ -291,19 +325,36 @@ export function buildResultView(args: {
     preFixedNet,
     postFixedTax,
     postFixedNet,
+    preFixedLabel: PRE_FIXED_LABEL,
+    preFixedAmount,
+    preFixedNetLine,
+    postFixedLabel: POST_FIXED_LABEL,
+    postFixedAmount,
+    postFixedNetLine,
+    amendmentDeltaLine,
+    simultaneousLine,
     patternTitle,
     patternLead,
     screenLines: [
       ...(taxNotice ? [taxNotice] : []),
       DISCLAIMER,
-      ...recommendedLines,
-      ...nextBestLines,
-      ...simultaneousLines,
+      ...(recommended
+        ? [`${recommended.title}: ${recommended.caption}`, recommended.taxLine, recommended.netLine]
+        : []),
+      ...(nextBest ? [nextBest.line] : []),
+      ...(simultaneousLine ? [simultaneousLine] : []),
       AMENDMENT_TITLE,
       lead,
-      ...amendmentAmountLines,
-      ...(patternTitle && patternLead ? [patternTitle, patternLead, ...patternTaxLines] : []),
-      ...searchTaxLines,
+      PRE_FIXED_LABEL,
+      preFixedAmount,
+      preFixedNetLine,
+      POST_FIXED_LABEL,
+      postFixedAmount,
+      postFixedNetLine,
+      amendmentDeltaLine,
+      ...(patternTitle && patternLead ? [patternTitle, patternLead, ...(cards ?? []).map((card) => card.line)] : []),
+      ...(searchBestText ? [searchBestText] : []),
+      ...searchRows.map((row) => row.line),
       ...yearRows.map((row) => row.line),
     ],
     regimeLine: receiptYears.map((year) => autoRegime(year)).join("。"),
@@ -315,6 +366,7 @@ export function buildResultView(args: {
       : null,
     searchBestLine,
     searchBestTax,
+    searchBestText,
     searchRows,
   };
 }
