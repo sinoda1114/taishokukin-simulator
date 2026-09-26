@@ -14,7 +14,7 @@ import {
   serviceYearsFromMonths,
   totalMonths,
 } from "./months";
-import { dcMinimumReceiptAge, membershipYears } from "./dc-age";
+import { dcMinimumReceiptAgeFromMonths, EARLIEST_RETIREMENT_AGE } from "./dc-age";
 import { explainYear } from "./explain";
 import { defaultRuleset } from "./ruleset";
 import { incomeTaxBracket, taxOnRetirementIncome } from "./tax";
@@ -128,6 +128,59 @@ export function freezeServiceIntervals(input: SimulationInput): SimulationInput 
   };
 }
 
+/**
+ * 候補の受取年で拠出を打ち切った区間。
+ * 年月区間は元の区間からその年まで延ばす。簡易入力は元の受取年に固定した区間のまま。
+ */
+function intervalsAtReceipt(
+  benefit: BenefitInput,
+  receiptYear: number,
+  birth?: YearMonth,
+): MonthInterval[] {
+  if (benefit.intervals && benefit.intervals.length > 0) {
+    return resolveBenefitIntervals({ ...benefit, receiptYear }, birth);
+  }
+  return resolveBenefitIntervals(benefit, birth);
+}
+
+export function membershipMonthsAtReceipt(
+  benefit: BenefitInput,
+  birth: YearMonth | undefined,
+  receiptYear: number,
+): number {
+  return totalMonths(intervalsAtReceipt(benefit, receiptYear, birth));
+}
+
+export function benefitAtReceiptYear(
+  benefit: BenefitInput,
+  receiptYear: number,
+  birth?: YearMonth,
+): BenefitInput {
+  return {
+    ...benefit,
+    receiptYear,
+    optimizeReceiptYear: false,
+    intervals: intervalsAtReceipt(benefit, receiptYear, birth),
+    serviceYears: undefined,
+  };
+}
+
+export function dcReceiptAgeAllowed(
+  benefit: BenefitInput,
+  receiptYear: number,
+  birth: YearMonth | undefined,
+  ruleset: TaxRuleset,
+): boolean {
+  if (benefit.kind !== "dc" || !birth) return true;
+  const age = ageInCalendarYear(birth, receiptYear);
+  if (age < EARLIEST_RETIREMENT_AGE || age > ruleset.dcReceiptAgeMax) return false;
+  const minAge = dcMinimumReceiptAgeFromMonths(
+    membershipMonthsAtReceipt(benefit, birth, receiptYear),
+    ruleset,
+  );
+  return age >= minAge;
+}
+
 function usesPostAmendment(
   paymentYear: number,
   ruleMode: RuleMode,
@@ -193,30 +246,23 @@ function hasShortTenure(current: ResolvedBenefit[], unionYears: number): boolean
   );
 }
 
-const EARLIEST_RETIREMENT_AGE = 20;
-
 function receiptBlockMessage(
-  benefits: ResolvedBenefit[],
+  benefit: ResolvedBenefit,
   birth: YearMonth | undefined,
   ruleset: TaxRuleset,
 ): string | null {
   if (!birth) return null;
-  const messages: string[] = [];
-  for (const benefit of benefits) {
-    const age = ageInCalendarYear(birth, benefit.receiptYear);
-    const name = benefitName(benefit);
-    if (age < EARLIEST_RETIREMENT_AGE) {
-      messages.push(`${name}の受取年齢${age}歳は、退職しうる年齢（20歳）より前です。`);
-    }
-    if (benefit.kind !== "dc") continue;
-    const minAge = dcMinimumReceiptAge(membershipYears(benefit), ruleset);
-    if (age < minAge || age > ruleset.dcReceiptAgeMax) {
-      messages.push(
-        `${name}の受取年齢${age}歳は受けられません。受けられるのは${minAge}歳から${ruleset.dcReceiptAgeMax}歳です。`,
-      );
-    }
+  const age = ageInCalendarYear(birth, benefit.receiptYear);
+  const name = benefitName(benefit);
+  if (age < EARLIEST_RETIREMENT_AGE) {
+    return `${name}の受取年齢${age}歳は、退職しうる年齢（${EARLIEST_RETIREMENT_AGE}歳）より前です。`;
   }
-  return messages.length === 0 ? null : messages.join("");
+  if (benefit.kind !== "dc") return null;
+  const minAge = dcMinimumReceiptAgeFromMonths(totalMonths(benefit.intervals), ruleset);
+  if (age < minAge || age > ruleset.dcReceiptAgeMax) {
+    return `${name}の受取年齢${age}歳は受けられません。受けられるのは${minAge}歳から${ruleset.dcReceiptAgeMax}歳です。`;
+  }
+  return null;
 }
 
 function contributionNotes(
@@ -263,7 +309,6 @@ function computeYear(args: {
   priors: PriorLump[];
   ruleMode: RuleMode;
   ruleset: TaxRuleset;
-  receiptBlocked: boolean;
 }): YearTaxResult {
   const { year, current, priors, ruleMode, ruleset } = args;
   const intervals = mergeIntervals(current.flatMap((b) => b.intervals));
@@ -310,15 +355,14 @@ function computeYear(args: {
   });
   const shortTenure = hasShortTenure(current, serviceYears);
 
-  const tax =
-    shortTenure || args.receiptBlocked
-      ? null
-      : taxOnRetirementIncome({
-          incomeYen,
-          deductionYen: deductionAfterAdjustmentYen,
-          paymentYear: year,
-          ruleset,
-        });
+  const tax = shortTenure
+    ? null
+    : taxOnRetirementIncome({
+        incomeYen,
+        deductionYen: deductionAfterAdjustmentYen,
+        paymentYear: year,
+        ruleset,
+      });
   const bracket = tax ? incomeTaxBracket(tax.taxableYen, ruleset) : null;
 
   const { steps, notes } = explainYear({
@@ -351,9 +395,6 @@ function computeYear(args: {
     taxRateBp: bracket?.rateBp,
     quickDeductionYen: bracket?.deductionYen,
   });
-  if (args.receiptBlocked) {
-    notes.push("受取できない年齢のため、税額は出していません。");
-  }
 
   return {
     year,
@@ -368,7 +409,7 @@ function computeYear(args: {
     deductionAfterAdjustmentYen,
     steps,
     notes,
-    status: args.receiptBlocked ? "receipt_ineligible" : tax ? "ok" : "tenure_out_of_scope",
+    status: tax ? "ok" : "tenure_out_of_scope",
     taxableYen: tax?.taxableYen ?? null,
     incomeTaxYen: tax?.incomeTaxYen ?? null,
     reconstructionTaxYen: tax?.reconstructionTaxYen ?? null,
@@ -408,8 +449,14 @@ export function simulate(
   const years = [...byYear.keys()].sort((a, b) => a - b);
   const priors: PriorLump[] = [];
   const yearResults: YearTaxResult[] = [];
-  const blockedMessage = receiptBlockMessage(resolved, input.birthYearMonth, ruleset);
-  const receiptBlocked = blockedMessage !== null;
+  const blockedByYear = new Map<number, string[]>();
+  for (const benefit of resolved) {
+    const message = receiptBlockMessage(benefit, input.birthYearMonth, ruleset);
+    if (!message) continue;
+    const list = blockedByYear.get(benefit.receiptYear) ?? [];
+    list.push(message);
+    blockedByYear.set(benefit.receiptYear, list);
+  }
 
   for (const year of years) {
     const current = byYear.get(year) ?? [];
@@ -419,7 +466,6 @@ export function simulate(
       priors,
       ruleMode: input.ruleMode,
       ruleset,
-      receiptBlocked,
     });
     yearResults.push(result);
 
@@ -449,8 +495,9 @@ export function simulate(
         "小規模企業共済は一般の退職金と同じ式で計算します。任意解約が退職所得にならない場合があります。受取年は自動では動かしません。",
     });
   }
-  if (blockedMessage) {
-    warnings.push({ code: "receipt_ineligible", message: blockedMessage });
+  const blockedMessages = [...blockedByYear.values()].flat();
+  if (blockedMessages.length > 0) {
+    warnings.push({ code: "receipt_ineligible", message: blockedMessages.join("") });
   }
   warnings.push(...contributionNotes(input.benefits, input.birthYearMonth, ruleset));
   if (resolved.some((b) => b.kind === "dc")) {
@@ -466,18 +513,39 @@ export function simulate(
     });
   }
 
-  const outOfScope = yearResults.some((y) => y.status !== "ok");
-  const totalTaxYen = outOfScope
-    ? null
-    : yearResults.reduce((sum, y) => sum + (y.totalTaxYen ?? 0), 0);
-  const totalNetYen = outOfScope
-    ? null
-    : yearResults.reduce((sum, y) => sum + (y.netYen ?? 0), 0);
+  const hadShortTenure = yearResults.some((year) => year.status === "tenure_out_of_scope");
+  const pricedYears = yearResults.map((year) => {
+    const messages = blockedByYear.get(year.year);
+    if (!messages || messages.length === 0 || year.status === "tenure_out_of_scope") return year;
+    return {
+      ...year,
+      status: "receipt_ineligible" as const,
+      taxableYen: null,
+      incomeTaxYen: null,
+      reconstructionTaxYen: null,
+      municipalTaxYen: null,
+      prefecturalTaxYen: null,
+      residentTaxYen: null,
+      nationalTaxYen: null,
+      totalTaxYen: null,
+      netYen: null,
+      notes: [...year.notes, "受取できない年齢のため、税額は出していません。"],
+    };
+  });
+  const priced = pricedYears.filter((year) => year.totalTaxYen !== null);
+  const totalTaxYen =
+    hadShortTenure || priced.length === 0
+      ? null
+      : priced.reduce((sum, year) => sum + (year.totalTaxYen ?? 0), 0);
+  const totalNetYen =
+    hadShortTenure || priced.length === 0
+      ? null
+      : priced.reduce((sum, year) => sum + (year.netYen ?? 0), 0);
 
   return {
     schemaVersion: 1,
     rulesetVersion: ruleset.version,
-    years: yearResults,
+    years: pricedYears,
     totalTaxYen,
     totalNetYen,
     warnings,

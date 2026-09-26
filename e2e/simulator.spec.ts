@@ -361,11 +361,52 @@ test("simultaneous receipt shows the shared age before the result", async ({ pag
   await page.getByRole("button", { name: "次へ" }).click();
   await page.getByRole("button", { name: "次へ" }).click();
   await page.getByRole("button", { name: "同時受取" }).click();
-  await expect(page.getByText("両方を62歳（2027年）で受け取ります。")).toBeVisible();
-  await expect(page.getByText("DC の受取年齢はそのままです。")).toBeVisible();
-  await expect(page.getByText("会社の受取年齢は60歳から62歳に変わります。")).toBeVisible();
+  await expect(page.getByText("会社も DC も、62歳（2027年）で受け取ります。")).toBeVisible();
   await page.getByRole("button", { name: "結果を見る" }).click();
   await expect(page.getByText("2027年").first()).toBeVisible();
+});
+
+test("DC age floor follows unrounded membership months", async ({ page }) => {
+  await startFromInputs(page);
+  await page.getByRole("checkbox", { name: "勤続期間を年月で入れる" }).nth(1).check();
+  const startYear = page.getByRole("textbox", { name: "開始年", exact: true });
+  await startYear.click();
+  await startYear.fill("2012");
+  await page.getByRole("option", { name: "2012年" }).click();
+  const endYear = page.getByRole("textbox", { name: "終了年", exact: true });
+  await endYear.click();
+  await endYear.fill("2019");
+  await page.getByRole("option", { name: "2019年" }).click();
+  const endMonth = page.getByRole("textbox", { name: "終了月", exact: true });
+  await endMonth.click();
+  await endMonth.fill("6");
+  await page.getByRole("option", { name: "6月" }).click();
+  await expect(page.getByText("加入年数が短いため、62歳から75歳です。")).toBeVisible();
+  const age = page.getByRole("textbox", { name: "受取年齢" }).nth(1);
+  await age.click();
+  await expect(page.getByRole("option", { name: "62歳" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "61歳" })).toHaveCount(0);
+});
+
+test("simultaneous tenure failure stays on that step", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "次へ" }).click();
+  const service = page.getByRole("textbox", { name: "勤続年数" });
+  await service.click();
+  await service.fill("61");
+  await page.getByRole("option", { name: "61年" }).click();
+  const age = page.getByRole("textbox", { name: "受取年齢" });
+  await age.click();
+  await age.fill("75");
+  await page.getByRole("option", { name: "75歳" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "同時受取" }).click();
+  await page.getByRole("button", { name: "結果を見る" }).click();
+  await expect(page.getByRole("heading", { name: "受け取る順の比較を見ますか" })).toBeVisible();
+  await expect(page.getByText("勤続の開始が生年月より前になります")).toBeVisible();
 });
 
 test("partial year digits open the 2000s, not 1920", async ({ page }) => {

@@ -1,6 +1,11 @@
-import { dcMinimumReceiptAge, defaultRuleset, type BenefitKind } from "@/engine";
+import {
+  dcMinimumReceiptAgeFromMonths,
+  defaultRuleset,
+  EARLIEST_RETIREMENT_AGE,
+  type BenefitKind,
+} from "@/engine";
 
-export const EARLIEST_RETIREMENT_AGE = 20;
+export { EARLIEST_RETIREMENT_AGE };
 export const DEFAULT_RECEIPT_AGE = 60;
 export const CONTRIBUTION_END_AGE_CAP = 65;
 
@@ -29,10 +34,12 @@ export function receiptAgeRange(
   birthYear: number,
   kind: BenefitKind = "company",
   serviceYears = 10,
+  membershipMonths?: number,
 ): { min: number; max: number } {
   const general = generalReceiptAgeRange(birthYear);
   if (kind !== "dc") return general;
-  const minAge = dcMinimumReceiptAge(serviceYears, defaultRuleset);
+  const months = membershipMonths ?? serviceYears * 12;
+  const minAge = dcMinimumReceiptAgeFromMonths(months, defaultRuleset);
   return {
     min: Math.max(general.min, minAge),
     max: Math.min(general.max, defaultRuleset.dcReceiptAgeMax),

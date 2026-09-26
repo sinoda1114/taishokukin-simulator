@@ -45,12 +45,17 @@ export function parseIncomeYen(raw: string): ParseResult {
 export function parseReceiptAge(
   raw: string,
   birthYear: number | null,
-  context: { kind?: BenefitKind; serviceYears?: number } = {},
+  context: { kind?: BenefitKind; serviceYears?: number; membershipMonths?: number } = {},
 ): ParseResult {
   if (birthYear === null) {
     return { ok: false, error: "生年月を先に入れてください" };
   }
-  const range = receiptAgeRange(birthYear, context.kind ?? "company", context.serviceYears ?? 10);
+  const range = receiptAgeRange(
+    birthYear,
+    context.kind ?? "company",
+    context.serviceYears ?? 10,
+    context.membershipMonths,
+  );
   return parseCountedInt(raw, { label: "受取年齢", min: range.min, max: range.max });
 }
 

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { defaultInput } from "./default-input";
 import {
   answersFromInput,
+  hearingStepForErrors,
   inputFromAnswers,
   nextHearingStep,
+  parseDraft,
   prevHearingStep,
   visibleHearingSteps,
 } from "./hearing";
@@ -54,7 +56,7 @@ describe("hearing mapping", () => {
     expect(input.benefits[0]?.kind).toBe("company");
   });
 
-  it("does not overwrite the chosen DC age when simultaneous age is unset", () => {
+  it("does not overwrite either age unless the draft says they are the same", () => {
     const input = inputFromAnswers({
       birthYear: 1965,
       birthMonth: 4,
@@ -72,20 +74,19 @@ describe("hearing mapping", () => {
     expect(input.benefits.find((b) => b.kind === "dc")?.receiptYear).toBe(2027);
   });
 
-  it("uses the simultaneous age only after it is stated", () => {
+  it("uses the one age written onto both benefits", () => {
     const input = inputFromAnswers({
       birthYear: 1965,
       birthMonth: 4,
       companyIncomeYen: 20_000_000,
       companyServiceYears: 30,
-      companyReceiptAge: 55,
+      companyReceiptAge: 62,
       hasDc: true,
       dcIncomeYen: 10_000_000,
       dcServiceYears: 20,
       dcReceiptAge: 62,
       hasExtra: false,
       goal: "simultaneous",
-      simultaneousAge: 62,
     });
     expect(input.benefits.find((b) => b.kind === "company")?.receiptYear).toBe(2027);
     expect(input.benefits.find((b) => b.kind === "dc")?.receiptYear).toBe(2027);
@@ -196,5 +197,45 @@ describe("hearing mapping", () => {
     expect(simulate(parseSimulationInput(previous)).totalTaxYen).toBe(
       simulate(parseSimulationInput(next)).totalTaxYen,
     );
+  });
+});
+
+describe("parseDraft", () => {
+  const base = {
+    birthYear: "1965",
+    birthMonth: "4",
+    companyIncomeYen: "20000000",
+    companyServiceYears: "30",
+    companyReceiptAge: "60",
+    hasDc: true,
+    dcIncomeYen: "10000000",
+    dcServiceYears: "20",
+    dcReceiptAge: "62",
+    hasExtra: false,
+    goal: "simultaneous" as const,
+  };
+
+  it("applies the one simultaneous age to both benefits", () => {
+    const parsed = parseDraft({ ...base, companyReceiptAge: "55" });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.companyReceiptAge).toBe(62);
+    expect(parsed.value.dcReceiptAge).toBe(62);
+    const next = inputFromAnswers(parsed.value);
+    expect(next.benefits.find((benefit) => benefit.kind === "company")?.receiptYear).toBe(2027);
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.receiptYear).toBe(2027);
+  });
+
+  it("keeps a tenure failure on the simultaneous step", () => {
+    const parsed = parseDraft({
+      ...base,
+      companyServiceYears: "61",
+      companyReceiptAge: "75",
+      dcReceiptAge: "60",
+    });
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.errors.companyReceiptAge).toContain("生年月より前");
+    expect(hearingStepForErrors({ hasDc: true, goal: "simultaneous" }, parsed.errors)).toBe("goal");
   });
 });

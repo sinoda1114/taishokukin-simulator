@@ -1,7 +1,11 @@
-import { dcMinimumReceiptAge, membershipYears } from "./dc-age";
 import { dcReceiptYears } from "./explain";
 import { defaultRuleset } from "./ruleset";
-import { ageInCalendarYear, freezeServiceIntervals, simulate } from "./simulate";
+import {
+  ageInCalendarYear,
+  benefitAtReceiptYear,
+  dcReceiptAgeAllowed,
+  simulate,
+} from "./simulate";
 import type {
   BenefitInput,
   SearchHit,
@@ -20,8 +24,9 @@ function candidateYears(
   if (!benefit.optimizeReceiptYear || benefit.kind !== "dc" || !input.birthYearMonth) {
     return [benefit.receiptYear];
   }
-  const minAge = dcMinimumReceiptAge(membershipYears(benefit), ruleset);
-  return dcReceiptYears(input.birthYearMonth.year, ruleset, minAge);
+  return dcReceiptYears(input.birthYearMonth.year, ruleset).filter((year) =>
+    dcReceiptAgeAllowed(benefit, year, input.birthYearMonth, ruleset),
+  );
 }
 
 function cartesian(lists: number[][]): number[][] {
@@ -43,23 +48,23 @@ export function searchReceiptYears(
   input: SimulationInput,
   ruleset: TaxRuleset = defaultRuleset,
 ): SearchResult {
-  const frozen = freezeServiceIntervals(input);
-  const lists = frozen.benefits.map((b) => candidateYears(b, frozen, ruleset));
+  const lists = input.benefits.map((benefit) => candidateYears(benefit, input, ruleset));
   const combos = cartesian(lists);
   const truncated = combos.length > SEARCH_COMBINATION_CAP;
   const used = truncated ? combos.slice(0, SEARCH_COMBINATION_CAP) : combos;
 
   const hits: SearchHit[] = used.map((years) => {
     const receiptYears: Record<string, number> = {};
-    const benefits = frozen.benefits.map((benefit, index) => {
-      receiptYears[benefit.id] = years[index];
-      return { ...benefit, receiptYear: years[index], optimizeReceiptYear: false };
+    const benefits = input.benefits.map((benefit, index) => {
+      const year = years[index] ?? benefit.receiptYear;
+      receiptYears[benefit.id] = year;
+      return benefitAtReceiptYear(benefit, year, input.birthYearMonth);
     });
-    const next: SimulationInput = { ...frozen, benefits };
+    const next: SimulationInput = { ...input, benefits };
     return { receiptYears, result: simulate(next, ruleset) };
   });
 
-  const feasible = hits.filter((h) => h.result.totalTaxYen !== null);
+  const feasible = hits.filter((hit) => hit.result.totalTaxYen !== null);
   feasible.sort((a, b) => {
     const tax = totalTaxOrInf(a) - totalTaxOrInf(b);
     if (tax !== 0) return tax;

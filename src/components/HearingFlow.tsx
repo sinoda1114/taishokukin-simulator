@@ -10,22 +10,22 @@ import { FIELD_RANGES } from "@/lib/field-ranges";
 import { toInt } from "@/lib/ui-numbers";
 import {
   parseBirthYear,
-  parseIncomeYen,
-  parseMonth,
   parseReceiptAge,
   parseServiceYears,
   receiptYearFromAge,
-  serviceConflictsWithReceipt,
 } from "@/lib/field-validation";
 import {
   answersFromInput,
   detailedServiceYears,
+  hearingStepErrorKeys,
+  hearingStepForErrors,
   inputFromAnswers,
   keepsDetailedIntervals,
   nextHearingStep,
+  parseDraft,
   prevHearingStep,
   visibleHearingSteps,
-  type HearingAnswers,
+  type HearingDraft,
   type HearingStepId,
 } from "@/lib/hearing";
 
@@ -77,93 +77,6 @@ function Choice({
   );
 }
 
-type TripletOk = { ok: true; income: number; service: number; age: number };
-type TripletErr = { ok: false; errors: Record<string, string> };
-
-function parseTriplet(
-  raw: { income: string; service: string; age: string },
-  keys: { income: string; service: string; age: string },
-  birthYear: number | null,
-  serviceLabel: string,
-  kind: "company" | "dc",
-): TripletOk | TripletErr {
-  const income = parseIncomeYen(raw.income);
-  const service = parseServiceYears(raw.service, serviceLabel);
-  const age = parseReceiptAge(raw.age, birthYear, {
-    kind,
-    serviceYears: service.ok ? service.value : 10,
-  });
-  const errors: Record<string, string> = {};
-  if (!income.ok) errors[keys.income] = income.error;
-  if (!service.ok) errors[keys.service] = service.error;
-  if (!age.ok) errors[keys.age] = age.error;
-  if (!income.ok || !service.ok || !age.ok) return { ok: false, errors };
-  return { ok: true, income: income.value, service: service.value, age: age.value };
-}
-
-function tenureConflict(
-  serviceYears: number,
-  receiptAge: number,
-  birthYear: number,
-  birthMonth: number | null,
-): string | null {
-  if (birthMonth === null) return null;
-  return serviceConflictsWithReceipt(serviceYears, receiptYearFromAge(birthYear, receiptAge), {
-    year: birthYear,
-    month: birthMonth,
-  });
-}
-
-function SimultaneousAge({
-  birthYear,
-  serviceYears,
-  companyAge,
-  dcAge,
-  value,
-  error,
-  onChange,
-}: {
-  birthYear: number | null;
-  serviceYears: number;
-  companyAge: string;
-  dcAge: string;
-  value: string;
-  error?: string;
-  onChange: (raw: string) => void;
-}) {
-  const shared = /^\d+$/.test(value.trim()) ? Number(value.trim()) : null;
-  const company = /^\d+$/.test(companyAge.trim()) ? Number(companyAge.trim()) : null;
-  const dc = /^\d+$/.test(dcAge.trim()) ? Number(dcAge.trim()) : null;
-  const year = birthYear !== null && shared !== null ? receiptYearFromAge(birthYear, shared) : null;
-  return (
-    <Stack gap="xs">
-      <Text size="sm" c="var(--ink-muted)" lh={1.6}>
-        同時に受け取る年齢をここで決めます。DC の受取可能年に入らない年齢は選べません。選んだ DC の年齢は、この欄と違うときだけ変わります。
-      </Text>
-      <ReceiptAgeField
-        label="両方の受取年齢"
-        value={value}
-        birthYear={birthYear}
-        kind="dc"
-        serviceYears={serviceYears}
-        error={error}
-        onChange={onChange}
-      />
-      {shared !== null && year !== null ? (
-        <Text size="sm" lh={1.6}>
-          両方を{shared}歳（{year}年）で受け取ります。
-          {dc !== null && shared !== dc
-            ? ` DC の受取年齢は${dc}歳から${shared}歳に変わります。`
-            : " DC の受取年齢はそのままです。"}
-          {company !== null && shared !== company
-            ? ` 会社の受取年齢は${company}歳から${shared}歳に変わります。`
-            : " 会社の受取年齢はそのままです。"}
-        </Text>
-      ) : null}
-    </Stack>
-  );
-}
-
 export function HearingFlow({
   initial,
   onSkip,
@@ -174,7 +87,7 @@ export function HearingFlow({
   onComplete: (input: SimulationInput) => void;
 }) {
   const seed = useMemo(() => answersFromInput(initial), [initial]);
-  const [draft, setDraft] = useState({
+  const [draft, setDraft] = useState<HearingDraft>({
     birthYear: String(seed.birthYear),
     birthMonth: String(seed.birthMonth),
     companyIncomeYen: String(seed.companyIncomeYen),
@@ -186,11 +99,9 @@ export function HearingFlow({
     dcReceiptAge: String(seed.dcReceiptAge),
     hasExtra: seed.hasExtra,
     goal: seed.goal,
-    simultaneousAge: String(seed.simultaneousAge ?? seed.dcReceiptAge),
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [step, setStep] = useState<HearingStepId>("birth");
-  const [sharedTouched, setSharedTouched] = useState(false);
   const steps = useMemo(() => visibleHearingSteps(draft.hasDc), [draft.hasDc]);
   const index = Math.max(0, steps.indexOf(step));
   const copy = STEP_COPY[step];
@@ -212,147 +123,41 @@ export function HearingFlow({
   const prevDc = initial.benefits.find((benefit) => benefit.kind === "dc");
   const dcServiceParsed = parseServiceYears(draft.dcServiceYears, "拠出年数");
   const dcServiceYears = dcServiceParsed.ok ? dcServiceParsed.value : 10;
-
-  function parsedAnswers(): { ok: true; value: HearingAnswers } | { ok: false; errors: Record<string, string> } {
-    const nextErrors: Record<string, string> = {};
-    const birthY = parseBirthYear(draft.birthYear);
-    const birthM = parseMonth(draft.birthMonth, "生月");
-    if (!birthY.ok) nextErrors.birthYear = birthY.error;
-    if (!birthM.ok) nextErrors.birthMonth = birthM.error;
-    const company = parseTriplet(
-      {
-        income: draft.companyIncomeYen,
-        service: draft.companyServiceYears,
-        age: draft.companyReceiptAge,
-      },
-      { income: "companyIncomeYen", service: "companyServiceYears", age: "companyReceiptAge" },
-      birthY.ok ? birthY.value : null,
-      "勤続年数",
-      "company",
-    );
-    if (!company.ok) Object.assign(nextErrors, company.errors);
-    else if (birthY.ok && !keepsDetailedIntervals(prevCompany, company.service)) {
-      const conflict = tenureConflict(company.service, company.age, birthY.value, birthM.ok ? birthM.value : null);
-      if (conflict) nextErrors.companyReceiptAge = conflict;
-    }
-    const dc = draft.hasDc
-      ? parseTriplet(
-          { income: draft.dcIncomeYen, service: draft.dcServiceYears, age: draft.dcReceiptAge },
-          { income: "dcIncomeYen", service: "dcServiceYears", age: "dcReceiptAge" },
-          birthY.ok ? birthY.value : null,
-          "拠出年数",
-          "dc",
-        )
-      : null;
-    if (dc && !dc.ok) Object.assign(nextErrors, dc.errors);
-    let simultaneousAge: number | undefined;
-    if (draft.hasDc && draft.goal === "simultaneous") {
-      const shared = parseReceiptAge(draft.simultaneousAge, birthY.ok ? birthY.value : null, {
-        kind: "dc",
-        serviceYears: dc?.ok ? dc.service : dcServiceYears,
-      });
-      if (!shared.ok) nextErrors.simultaneousAge = shared.error;
-      else simultaneousAge = shared.value;
-    }
-    if (dc?.ok && birthY.ok && !keepsDetailedIntervals(prevDc, dc.service)) {
-      const storedAge = simultaneousAge ?? dc.age;
-      const conflict = tenureConflict(dc.service, storedAge, birthY.value, birthM.ok ? birthM.value : null);
-      if (conflict) nextErrors.dcReceiptAge = conflict;
-    }
-    if (Object.keys(nextErrors).length > 0) return { ok: false, errors: nextErrors };
-    if (!birthY.ok || !birthM.ok || !company.ok) return { ok: false, errors: nextErrors };
-    return {
-      ok: true,
-      value: {
-        birthYear: birthY.value,
-        birthMonth: birthM.value,
-        companyIncomeYen: company.income,
-        companyServiceYears: company.service,
-        companyReceiptAge: company.age,
-        hasDc: draft.hasDc,
-        dcIncomeYen: dc?.ok ? dc.income : 0,
-        dcServiceYears: dc?.ok ? dc.service : 1,
-        dcReceiptAge: dc?.ok ? dc.age : company.age,
-        hasExtra: draft.hasExtra,
-        goal: draft.goal,
-        simultaneousAge,
-      },
-    };
-  }
+  const sharedAge = parseReceiptAge(draft.dcReceiptAge, birthYear, {
+    kind: "dc",
+    serviceYears: dcServiceYears,
+  });
+  const sharedYear =
+    birthYear !== null && sharedAge.ok ? receiptYearFromAge(birthYear, sharedAge.value) : null;
 
   function validateCurrentStep(): boolean {
-    const nextErrors: Record<string, string> = {};
-    if (step === "birth") {
-      const year = parseBirthYear(draft.birthYear);
-      const month = parseMonth(draft.birthMonth, "生月");
-      if (!year.ok) nextErrors.birthYear = year.error;
-      if (!month.ok) nextErrors.birthMonth = month.error;
+    const parsed = parseDraft(draft, initial.benefits);
+    if (parsed.ok) {
+      setErrors({});
+      return true;
     }
-    if (step === "company") {
-      const company = parseTriplet(
-        {
-          income: draft.companyIncomeYen,
-          service: draft.companyServiceYears,
-          age: draft.companyReceiptAge,
-        },
-        { income: "companyIncomeYen", service: "companyServiceYears", age: "companyReceiptAge" },
-        birthYear,
-        "勤続年数",
-        "company",
-      );
-      if (!company.ok) Object.assign(nextErrors, company.errors);
-      else if (birthYear !== null && !keepsDetailedIntervals(prevCompany, company.service)) {
-        const month = parseMonth(draft.birthMonth, "生月");
-        const conflict = tenureConflict(company.service, company.age, birthYear, month.ok ? month.value : null);
-        if (conflict) nextErrors.companyReceiptAge = conflict;
-      }
+    const allowed = new Set(hearingStepErrorKeys(step, draft));
+    const visible: Record<string, string> = {};
+    for (const [key, message] of Object.entries(parsed.errors)) {
+      if (allowed.has(key)) visible[key] = message;
     }
-    if (step === "dc") {
-      const dc = parseTriplet(
-        { income: draft.dcIncomeYen, service: draft.dcServiceYears, age: draft.dcReceiptAge },
-        { income: "dcIncomeYen", service: "dcServiceYears", age: "dcReceiptAge" },
-        birthYear,
-        "拠出年数",
-        "dc",
-      );
-      if (!dc.ok) Object.assign(nextErrors, dc.errors);
-    }
-    if (step === "goal" && draft.hasDc && draft.goal === "simultaneous") {
-      const shared = parseReceiptAge(draft.simultaneousAge, birthYear, {
-        kind: "dc",
-        serviceYears: dcServiceYears,
-      });
-      if (!shared.ok) nextErrors.simultaneousAge = shared.error;
-    }
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    setErrors(visible);
+    return Object.keys(visible).length === 0;
   }
 
   function goNext() {
-    if (!validateCurrentStep()) return;
     const next = nextHearingStep(step, draft.hasDc);
     if (next === "done") {
-      const parsed = parsedAnswers();
+      const parsed = parseDraft(draft, initial.benefits);
       if (!parsed.ok) {
         setErrors(parsed.errors);
-        if (parsed.errors.simultaneousAge) {
-          setStep("goal");
-        } else if (parsed.errors.dcIncomeYen || parsed.errors.dcServiceYears || parsed.errors.dcReceiptAge) {
-          setStep("dc");
-        } else if (
-          parsed.errors.companyIncomeYen ||
-          parsed.errors.companyServiceYears ||
-          parsed.errors.companyReceiptAge
-        ) {
-          setStep("company");
-        } else if (parsed.errors.birthYear || parsed.errors.birthMonth) {
-          setStep("birth");
-        }
+        setStep(hearingStepForErrors(draft, parsed.errors));
         return;
       }
       onComplete(inputFromAnswers(parsed.value, initial));
       return;
     }
+    if (!validateCurrentStep()) return;
     setStep(next);
   }
 
@@ -489,20 +294,7 @@ export function HearingFlow({
               kind="dc"
               serviceYears={dcServiceYears}
               error={errors.dcReceiptAge}
-              onChange={(dcReceiptAge) => {
-                setDraft((prev) => ({
-                  ...prev,
-                  dcReceiptAge,
-                  simultaneousAge: sharedTouched ? prev.simultaneousAge : dcReceiptAge,
-                }));
-                setErrors((prev) => {
-                  if (!prev.dcReceiptAge && !prev.simultaneousAge) return prev;
-                  const next = { ...prev };
-                  delete next.dcReceiptAge;
-                  if (!sharedTouched) delete next.simultaneousAge;
-                  return next;
-                });
-              }}
+              onChange={(dcReceiptAge) => patch("dcReceiptAge", dcReceiptAge)}
             />
             {detailedServiceYears(prevDc) !== null ? (
               <Text size="sm" c="var(--ink-muted)">
@@ -528,7 +320,23 @@ export function HearingFlow({
         {step === "goal" ? (
           <Stack gap="sm">
             <div className="choice-row" role="group" aria-label="見たい比較">
-              <Choice selected={draft.goal === "simultaneous"} onClick={() => patch("goal", "simultaneous")}>
+              <Choice
+                selected={draft.goal === "simultaneous"}
+                onClick={() => {
+                  setDraft((prev) => ({
+                    ...prev,
+                    goal: "simultaneous",
+                    companyReceiptAge: prev.dcReceiptAge,
+                  }));
+                  setErrors((prev) => {
+                    if (!prev.companyReceiptAge && !prev.dcReceiptAge) return prev;
+                    const next = { ...prev };
+                    delete next.companyReceiptAge;
+                    delete next.dcReceiptAge;
+                    return next;
+                  });
+                }}
+              >
                 同時受取
               </Choice>
               <Choice selected={draft.goal === "sequence"} onClick={() => patch("goal", "sequence")}>
@@ -536,18 +344,38 @@ export function HearingFlow({
               </Choice>
             </div>
             {draft.goal === "simultaneous" && draft.hasDc ? (
-              <SimultaneousAge
-                birthYear={birthYear}
-                serviceYears={dcServiceYears}
-                companyAge={draft.companyReceiptAge}
-                dcAge={draft.dcReceiptAge}
-                value={draft.simultaneousAge}
-                error={errors.simultaneousAge}
-                onChange={(simultaneousAge) => {
-                  setSharedTouched(true);
-                  patch("simultaneousAge", simultaneousAge);
-                }}
-              />
+              <Stack gap="xs">
+                <Text size="sm" c="var(--ink-muted)" lh={1.6}>
+                  ここで選んだ1つの年齢を、会社と DC の両方の受取年齢にします。
+                </Text>
+                <ReceiptAgeField
+                  label="両方の受取年齢"
+                  value={draft.dcReceiptAge}
+                  birthYear={birthYear}
+                  kind="dc"
+                  serviceYears={dcServiceYears}
+                  error={errors.dcReceiptAge ?? errors.companyReceiptAge}
+                  onChange={(age) => {
+                    setDraft((prev) => ({
+                      ...prev,
+                      dcReceiptAge: age,
+                      companyReceiptAge: age,
+                    }));
+                    setErrors((prev) => {
+                      if (!prev.dcReceiptAge && !prev.companyReceiptAge) return prev;
+                      const next = { ...prev };
+                      delete next.dcReceiptAge;
+                      delete next.companyReceiptAge;
+                      return next;
+                    });
+                  }}
+                />
+                {sharedAge.ok && sharedYear !== null ? (
+                  <Text size="sm" lh={1.6}>
+                    会社も DC も、{sharedAge.value}歳（{sharedYear}年）で受け取ります。
+                  </Text>
+                ) : null}
+              </Stack>
             ) : null}
             {draft.goal === "sequence" && draft.hasDc ? (
               <Text size="sm" c="var(--ink-muted)">

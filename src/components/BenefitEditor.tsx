@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Checkbox, Group, Paper, Select, Stack, Text } from "@mantine/core";
-import { ageInCalendarYear, membershipYears, yearOfAge, type BenefitInput, type YearMonth } from "@/engine";
+import { ageInCalendarYear, totalMonths, yearOfAge, type BenefitInput, type YearMonth } from "@/engine";
 import { IntInput } from "./IntInput";
 import { IntPickerField } from "./IntPickerField";
 import { ReceiptAgeField } from "./ReceiptAgeField";
@@ -95,7 +95,8 @@ export function BenefitEditor({
     );
   }, [benefit.intervals]);
 
-  const membership = membershipYears(benefit);
+  const membershipMonths =
+    benefit.intervals && benefit.intervals.length > 0 ? totalMonths(benefit.intervals) : undefined;
   const receiptAge = birth ? ageInCalendarYear(birth, benefit.receiptYear) : null;
   const endBounds = contributionEndBounds(benefit.kind === "dc" ? receiptAge : null);
 
@@ -103,7 +104,11 @@ export function BenefitEditor({
     const next: Record<string, string> = {};
     const income = parseIncomeYen(incomeRaw);
     if (!income.ok) next.income = income.error;
-    const ageContext = { kind: benefit.kind, serviceYears: membershipYears(benefit) };
+    const ageContext = {
+      kind: benefit.kind,
+      serviceYears: benefit.serviceYears,
+      membershipMonths,
+    };
     if (!useIntervals) {
       const service = parseServiceYears(serviceRaw);
       if (!service.ok) next.service = service.error;
@@ -146,7 +151,7 @@ export function BenefitEditor({
       if (!endAge.ok) next.endAge = endAge.error;
     }
     return next;
-  }, [ageRaw, benefit, birth, endAgeRaw, incomeRaw, intervalDrafts, serviceRaw, useIntervals]);
+  }, [ageRaw, benefit, birth, endAgeRaw, incomeRaw, intervalDrafts, membershipMonths, serviceRaw, useIntervals]);
 
   const reportedOk = useRef<boolean | null>(null);
   useEffect(() => {
@@ -161,7 +166,8 @@ export function BenefitEditor({
     if (!birth) return;
     const parsed = parseReceiptAge(raw, birth.year, {
       kind: benefit.kind,
-      serviceYears: membershipYears(benefit),
+      serviceYears: benefit.serviceYears,
+      membershipMonths,
     });
     if (parsed.ok) onChange({ receiptYear: yearOfAge(birth, parsed.value) });
   }
@@ -238,7 +244,8 @@ export function BenefitEditor({
           value={ageRaw}
           birthYear={birth?.year ?? null}
           kind={benefit.kind}
-          serviceYears={membership}
+          serviceYears={benefit.serviceYears}
+          membershipMonths={membershipMonths}
           error={errors.age}
           onChange={commitAge}
         />

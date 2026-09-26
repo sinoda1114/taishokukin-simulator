@@ -1,6 +1,13 @@
-import { dcMinimumReceiptAge, membershipYears } from "./dc-age";
+import { dcMinimumReceiptAgeFromMonths } from "./dc-age";
+import { dcReceiptYears } from "./explain";
 import { defaultRuleset } from "./ruleset";
-import { freezeServiceIntervals, simulate, yearOfAge } from "./simulate";
+import {
+  benefitAtReceiptYear,
+  dcReceiptAgeAllowed,
+  membershipMonthsAtReceipt,
+  simulate,
+  yearOfAge,
+} from "./simulate";
 import type {
   BenefitInput,
   PatternComparison,
@@ -8,10 +15,6 @@ import type {
   SimulationInput,
   TaxRuleset,
 } from "./types";
-
-function withReceiptYear(benefit: BenefitInput, year: number): BenefitInput {
-  return { ...benefit, receiptYear: year, optimizeReceiptYear: false };
-}
 
 function replaceBenefits(
   input: SimulationInput,
@@ -31,20 +34,25 @@ export function buildThreePatterns(
   ruleset: TaxRuleset = defaultRuleset,
 ): PatternComparison[] | null {
   if (!isCompanyPlusDcPair(input.benefits)) return null;
-  const frozen = freezeServiceIntervals(input);
-  const company = frozen.benefits.find((b) => b.kind === "company");
-  const dc = frozen.benefits.find((b) => b.kind === "dc");
+  const company = input.benefits.find((b) => b.kind === "company");
+  const dc = input.benefits.find((b) => b.kind === "dc");
   if (!company || !dc) return null;
 
-  const minAge = dcMinimumReceiptAge(membershipYears(dc), ruleset);
-  const ageMin = input.birthYearMonth
-    ? yearOfAge(input.birthYearMonth, minAge)
+  const birth = input.birthYearMonth;
+  const earliest = birth
+    ? (dcReceiptYears(birth.year, ruleset).find((year) =>
+        dcReceiptAgeAllowed(dc, year, birth, ruleset),
+      ) ?? null)
     : company.receiptYear - 5;
-  const age75 = input.birthYearMonth
-    ? yearOfAge(input.birthYearMonth, ruleset.dcReceiptAgeMax)
-    : ageMin + (ruleset.dcReceiptAgeMax - ruleset.dcReceiptAgeMin);
+  const age75 = birth
+    ? yearOfAge(birth, ruleset.dcReceiptAgeMax)
+    : (earliest ?? company.receiptYear) + (ruleset.dcReceiptAgeMax - ruleset.dcReceiptAgeMin);
 
-  const canDc = (year: number) => year >= ageMin && year <= age75;
+  const canDc = (year: number) =>
+    birth ? dcReceiptAgeAllowed(dc, year, birth, ruleset) : year >= (earliest ?? year) && year <= age75;
+
+  const dcFirstYear = earliest ?? age75;
+  const companyFirstYear = Math.min(age75, Math.max(company.receiptYear + 1, dcFirstYear));
 
   const rows: Array<{ kind: PatternKind; label: string; companyYear: number; dcYear: number }> =
     [
@@ -58,18 +66,21 @@ export function buildThreePatterns(
         kind: "company_first",
         label: "退職金先",
         companyYear: company.receiptYear,
-        dcYear: Math.min(age75, Math.max(company.receiptYear + 1, ageMin)),
+        dcYear: companyFirstYear,
       },
       {
         kind: "dc_first",
         label: "iDeCo先",
         companyYear: company.receiptYear,
-        dcYear: ageMin,
+        dcYear: dcFirstYear,
       },
     ];
 
   return rows.map((row) => {
     let omitted: string | undefined;
+    const minAge = birth
+      ? dcMinimumReceiptAgeFromMonths(membershipMonthsAtReceipt(dc, birth, row.dcYear), ruleset)
+      : ruleset.dcReceiptAgeMin;
     if (!canDc(row.dcYear)) {
       omitted = `iDeCoの受取可能年（${minAge}〜${ruleset.dcReceiptAgeMax}歳の暦年）に入りません`;
     } else if (row.kind === "company_first" && row.dcYear <= row.companyYear) {
@@ -77,9 +88,9 @@ export function buildThreePatterns(
     } else if (row.kind === "dc_first" && row.dcYear >= row.companyYear) {
       omitted = "会社の受取年がiDeCo開始可能年以前のため、この順は作れません";
     }
-    const nextInput = replaceBenefits(frozen, [
-      withReceiptYear(company, row.companyYear),
-      withReceiptYear(dc, row.dcYear),
+    const nextInput = replaceBenefits(input, [
+      benefitAtReceiptYear(company, row.companyYear, birth),
+      benefitAtReceiptYear(dc, row.dcYear, birth),
     ]);
     if (omitted) {
       return {

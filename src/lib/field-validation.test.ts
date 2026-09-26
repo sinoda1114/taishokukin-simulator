@@ -62,6 +62,8 @@ describe("receipt age", () => {
     expect(parseReceiptAge("60", 1977, { kind: "dc", serviceYears: 8 }).ok).toBe(false);
     expect(parseReceiptAge("61", 1977, { kind: "dc", serviceYears: 8 })).toEqual({ ok: true, value: 61 });
     expect(parseReceiptAge("76", 1977, { kind: "dc", serviceYears: 20 }).ok).toBe(false);
+    expect(parseReceiptAge("61", 1965, { kind: "dc", membershipMonths: 90 }).ok).toBe(false);
+    expect(parseReceiptAge("62", 1965, { kind: "dc", membershipMonths: 90 })).toEqual({ ok: true, value: 62 });
   });
 });
 

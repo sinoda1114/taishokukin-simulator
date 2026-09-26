@@ -13,6 +13,7 @@ type Props = {
   error?: string;
   kind?: BenefitKind;
   serviceYears?: number;
+  membershipMonths?: number;
   label?: string;
 };
 
@@ -23,12 +24,13 @@ export function ReceiptAgeField({
   error,
   kind = "company",
   serviceYears = 10,
+  membershipMonths,
   label = "受取年齢",
 }: Props) {
   const range =
     birthYear === null
       ? { min: kind === "dc" ? 60 : 20, max: FIELD_RANGES.receiptYear.max - FIELD_RANGES.birthYear.min }
-      : receiptAgeRange(birthYear, kind, serviceYears);
+      : receiptAgeRange(birthYear, kind, serviceYears, membershipMonths);
   const parsed = /^\d+$/.test(value.trim()) ? Number(value.trim()) : null;
   const year =
     birthYear !== null && parsed !== null && parsed >= range.min && parsed <= range.max
