@@ -10,7 +10,7 @@ async function completeSampleHearing(page: Page) {
   await expect(page.getByRole("heading", { name: "生年月を選んでください" })).toBeVisible();
   await page.getByRole("button", { name: "次へ" }).click();
   await expect(page.getByRole("heading", { name: "会社の退職金について教えてください" })).toBeVisible();
-  await expect(page.getByText("受取年は 2030年です")).toBeVisible();
+  await expect(page.getByText("受取年は 2025年です")).toBeVisible();
   await page.getByRole("button", { name: "次へ" }).click();
   await expect(page.getByRole("heading", { name: "iDeCo か企業型 DC の一時金はありますか" })).toBeVisible();
   await expect(page.getByRole("button", { name: "ある", pressed: true })).toBeVisible();
@@ -30,7 +30,7 @@ async function completeSampleHearing(page: Page) {
 test("disclaimer, default calc, three patterns, and share URL", async ({ page }) => {
   await startFromInputs(page);
   await expect(page.getByRole("heading", { name: "退職金シミュレーター" })).toBeVisible();
-  await expect(page.getByText("税務助言ではありません")).toBeVisible();
+  await expect(page.getByText("税務助言ではありません", { exact: true })).toBeVisible();
   await expect(page.getByText("合計税額")).toBeVisible();
   await expect(page.getByText("1,861,869円").first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "同時 / 退職金先 / iDeCo先" })).toBeVisible();
@@ -181,7 +181,7 @@ test("hearing uses pickers only and blocks empty age", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "勤続年数" })).toHaveValue("30年");
   await expect(page.getByRole("textbox", { name: "勤続年数の選択" })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "受取年齢" })).toHaveCount(1);
-  await expect(page.getByRole("textbox", { name: "受取年齢" })).toHaveValue("65歳");
+  await expect(page.getByRole("textbox", { name: "受取年齢" })).toHaveValue("60歳");
   await expect(page.getByRole("textbox", { name: "受取年齢の選択" })).toHaveCount(0);
   const serviceField = page.locator(".picker-field").filter({ has: page.getByText("勤続年数", { exact: true }) });
   await expect(serviceField.locator("input:visible")).toHaveCount(1);
@@ -200,8 +200,10 @@ test("skip shows pattern bars and a search line", async ({ page }) => {
   await expect(page.getByRole("img", { name: "3パターンの税額比較" })).toBeVisible();
   await expect(page.locator(".bar-fill.is-best")).toHaveCount(1);
   await expect(page.getByRole("img", { name: /税額の折れ線/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "探索の表" })).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "受取年" })).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "控除（調整前）" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "受取年", exact: true })).toHaveCount(1);
+  await expect(page.getByText("改正前に固定", { exact: true })).toBeVisible();
+  await expect(page.getByText("改正後に固定", { exact: true })).toBeVisible();
 });
 
 test("375px bars and search line stay on screen", async ({ page }) => {
@@ -292,6 +294,78 @@ test("typed year commits when the next step is opened", async ({ page }) => {
   await page.getByRole("button", { name: "次へ" }).click();
   await page.getByRole("button", { name: "戻る" }).click();
   await expect(page.getByRole("textbox", { name: "生年" })).toHaveValue("2015年");
+});
+
+test("company age picker opens at 60 and still reaches an earlier retirement", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "次へ" }).click();
+  const age = page.getByRole("textbox", { name: "受取年齢" });
+  await expect(age).toHaveValue("60歳");
+  await age.click();
+  await expect(page.getByRole("option").first()).toHaveText("60歳");
+  await expect(page.getByRole("option", { name: "3歳", exact: true })).toHaveCount(0);
+  await age.fill("45");
+  await page.getByRole("option", { name: "45歳" }).click();
+  await expect(age).toHaveValue("45歳");
+  await expect(page.getByText("受取年は 2010年です")).toBeVisible();
+});
+
+test("DC age picker does not offer an age under 60", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  const age = page.getByRole("textbox", { name: "受取年齢" });
+  await expect(age).toHaveValue("60歳");
+  await age.click();
+  await expect(page.getByRole("option").first()).toHaveText("60歳");
+  await expect(page.getByRole("option", { name: "59歳" })).toHaveCount(0);
+  await age.fill("59");
+  await expect(page.getByRole("option", { name: "59歳" })).toHaveCount(0);
+});
+
+test("intervals can be added and survive a return to the questions", async ({ page }) => {
+  await startFromInputs(page);
+  await page.getByRole("checkbox", { name: "勤続期間を年月で入れる" }).first().check();
+  await expect(page.getByText("区間 1")).toBeVisible();
+  await page.getByRole("button", { name: "区間を追加" }).first().click();
+  await expect(page.getByText("区間 2")).toBeVisible();
+  await page.getByRole("button", { name: "質問に戻る" }).click();
+  await completeSampleHearing(page);
+  await expect(page.getByText("区間 1")).toBeVisible();
+  await expect(page.getByText("区間 2")).toBeVisible();
+  await page.getByRole("button", { name: "区間 2 を削除" }).click();
+  await expect(page.getByText("区間 2")).toHaveCount(0);
+});
+
+test("contribution end stays at or before the receipt age", async ({ page }) => {
+  await startFromInputs(page);
+  const end = page.getByRole("textbox", { name: "拠出終了年齢（任意）" });
+  await end.scrollIntoViewIfNeeded();
+  await expect(page.getByText("拠出終了は受取年齢以前です")).toBeVisible();
+  await end.click();
+  await expect(page.getByRole("option", { name: "60歳" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "61歳" })).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "70歳" })).toHaveCount(0);
+});
+
+test("simultaneous receipt shows the shared age before the result", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  const dcAge = page.getByRole("textbox", { name: "受取年齢" });
+  await dcAge.click();
+  await dcAge.fill("62");
+  await page.getByRole("option", { name: "62歳" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "次へ" }).click();
+  await page.getByRole("button", { name: "同時受取" }).click();
+  await expect(page.getByText("両方を62歳（2027年）で受け取ります。")).toBeVisible();
+  await expect(page.getByText("DC の受取年齢はそのままです。")).toBeVisible();
+  await expect(page.getByText("会社の受取年齢は60歳から62歳に変わります。")).toBeVisible();
+  await page.getByRole("button", { name: "結果を見る" }).click();
+  await expect(page.getByText("2027年").first()).toBeVisible();
 });
 
 test("partial year digits open the 2000s, not 1920", async ({ page }) => {

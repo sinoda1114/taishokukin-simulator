@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Checkbox, Group, Paper, Select, Stack } from "@mantine/core";
-import { ageInCalendarYear, yearOfAge, type BenefitInput, type YearMonth } from "@/engine";
+import { Button, Checkbox, Group, Paper, Select, Stack, Text } from "@mantine/core";
+import { ageInCalendarYear, membershipYears, yearOfAge, type BenefitInput, type YearMonth } from "@/engine";
 import { IntInput } from "./IntInput";
 import { IntPickerField } from "./IntPickerField";
 import { ReceiptAgeField } from "./ReceiptAgeField";
 import { isBenefitKind, KIND_LABELS } from "@/lib/parse-input";
-import { FIELD_RANGES } from "@/lib/field-ranges";
+import { CONTRIBUTION_END_NOTE, contributionEndBounds, FIELD_RANGES } from "@/lib/field-ranges";
 import {
   intervalOrderError,
   parseContributionEndAge,
@@ -95,14 +95,22 @@ export function BenefitEditor({
     );
   }, [benefit.intervals]);
 
+  const membership = membershipYears(benefit);
+  const receiptAge = birth ? ageInCalendarYear(birth, benefit.receiptYear) : null;
+  const endBounds = contributionEndBounds(benefit.kind === "dc" ? receiptAge : null);
+
   const errors = useMemo(() => {
     const next: Record<string, string> = {};
     const income = parseIncomeYen(incomeRaw);
     if (!income.ok) next.income = income.error;
+    const ageContext = { kind: benefit.kind, serviceYears: membershipYears(benefit) };
     if (!useIntervals) {
       const service = parseServiceYears(serviceRaw);
       if (!service.ok) next.service = service.error;
-      const parsedAge = parseReceiptAge(ageRaw, birth?.year ?? null);
+      const parsedAge = parseReceiptAge(ageRaw, birth?.year ?? null, {
+        ...ageContext,
+        serviceYears: service.ok ? service.value : ageContext.serviceYears,
+      });
       if (!parsedAge.ok) next.age = parsedAge.error;
       if (service.ok && parsedAge.ok && birth) {
         const conflict = serviceConflictsWithReceipt(
@@ -113,7 +121,7 @@ export function BenefitEditor({
         if (conflict) next.age = conflict;
       }
     } else {
-      const parsedAge = parseReceiptAge(ageRaw, birth?.year ?? null);
+      const parsedAge = parseReceiptAge(ageRaw, birth?.year ?? null, ageContext);
       if (!parsedAge.ok) next.age = parsedAge.error;
       intervalDrafts.forEach((draft, i) => {
         const startYear = parseYearField(draft.startYear, "開始年");
@@ -134,11 +142,11 @@ export function BenefitEditor({
       });
     }
     if (benefit.kind === "dc" && endAgeRaw.trim() !== "") {
-      const endAge = parseContributionEndAge(endAgeRaw);
+      const endAge = parseContributionEndAge(endAgeRaw, birth ? ageInCalendarYear(birth, benefit.receiptYear) : null);
       if (!endAge.ok) next.endAge = endAge.error;
     }
     return next;
-  }, [ageRaw, birth, benefit.kind, endAgeRaw, incomeRaw, intervalDrafts, serviceRaw, useIntervals]);
+  }, [ageRaw, benefit, birth, endAgeRaw, incomeRaw, intervalDrafts, serviceRaw, useIntervals]);
 
   const reportedOk = useRef<boolean | null>(null);
   useEffect(() => {
@@ -151,7 +159,10 @@ export function BenefitEditor({
   function commitAge(raw: string) {
     setAgeRaw(raw);
     if (!birth) return;
-    const parsed = parseReceiptAge(raw, birth.year);
+    const parsed = parseReceiptAge(raw, birth.year, {
+      kind: benefit.kind,
+      serviceYears: membershipYears(benefit),
+    });
     if (parsed.ok) onChange({ receiptYear: yearOfAge(birth, parsed.value) });
   }
 
@@ -226,12 +237,36 @@ export function BenefitEditor({
         <ReceiptAgeField
           value={ageRaw}
           birthYear={birth?.year ?? null}
+          kind={benefit.kind}
+          serviceYears={membership}
           error={errors.age}
           onChange={commitAge}
         />
         {useIntervals ? (
-          intervalDrafts.map((draft, i) => (
+          <Stack gap="sm">
+          {intervalDrafts.map((draft, i) => (
             <Stack key={`${benefit.id}-iv-${i}`} gap="sm">
+              <Group justify="space-between" align="center">
+                <Text size="sm" fw={600}>
+                  区間 {i + 1}
+                </Text>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="compact-sm"
+                  aria-label={`区間 ${i + 1} を削除`}
+                  onClick={() => {
+                    const next = (benefit.intervals ?? []).filter((_, index) => index !== i);
+                    if (next.length === 0) {
+                      onChange({ intervals: undefined, serviceYears: benefit.serviceYears ?? 20 });
+                      return;
+                    }
+                    onChange({ intervals: next });
+                  }}
+                >
+                  この区間を削除
+                </Button>
+              </Group>
               <Group grow preventGrowOverflow={false} wrap="wrap">
                 <IntPickerField
                   label="開始年"
@@ -273,7 +308,26 @@ export function BenefitEditor({
                 />
               </Group>
             </Stack>
-          ))
+          ))}
+          <Button
+            type="button"
+            variant="default"
+            onClick={() => {
+              const startYear = birth ? Math.max(birth.year, benefit.receiptYear - 10) : benefit.receiptYear - 10;
+              onChange({
+                intervals: [
+                  ...(benefit.intervals ?? []),
+                  {
+                    start: { year: startYear, month: 1 },
+                    end: { year: benefit.receiptYear, month: 12 },
+                  },
+                ],
+              });
+            }}
+          >
+            区間を追加
+          </Button>
+          </Stack>
         ) : (
           <IntPickerField
             label="勤続年数"
@@ -286,23 +340,30 @@ export function BenefitEditor({
           />
         )}
         {benefit.kind === "dc" ? (
-          <IntPickerField
-            label="拠出終了年齢（任意）"
-            min={FIELD_RANGES.contributionEndAge.min}
-            max={FIELD_RANGES.contributionEndAge.max}
-            optionSuffix="歳"
-            value={endAgeRaw}
-            error={errors.endAge}
-            onChange={(raw) => {
-              setEndAgeRaw(raw);
-              if (raw.trim() === "") {
-                onChange({ contributionEndAge: undefined });
-                return;
-              }
-              const parsed = parseContributionEndAge(raw);
-              if (parsed.ok) onChange({ contributionEndAge: parsed.value });
-            }}
-          />
+          <Stack gap={6}>
+            <IntPickerField
+              label="拠出終了年齢（任意）"
+              min={endBounds.min}
+              max={Math.max(endBounds.min, endBounds.max)}
+              optionSuffix="歳"
+              value={endAgeRaw}
+              error={errors.endAge}
+              disabled={endBounds.max < endBounds.min}
+              onChange={(raw) => {
+                setEndAgeRaw(raw);
+                if (raw.trim() === "") {
+                  onChange({ contributionEndAge: undefined });
+                  return;
+                }
+                const parsed = parseContributionEndAge(raw, receiptAge);
+                if (parsed.ok) onChange({ contributionEndAge: parsed.value });
+              }}
+            />
+            <Text size="sm" c="var(--ink-muted)">
+              {CONTRIBUTION_END_NOTE}
+              {receiptAge !== null ? ` いまの受取年齢は${receiptAge}歳です。` : ""}
+            </Text>
+          </Stack>
         ) : null}
         {canOptimize ? (
           <Checkbox

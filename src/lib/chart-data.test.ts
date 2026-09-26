@@ -1,56 +1,50 @@
 import { describe, expect, it } from "vitest";
 import type { SearchHit } from "@/engine";
-import { chartScale, searchLinePoints, valleyYears } from "./chart-data";
+import { chartScale, searchLinePoints, valleyAges } from "./chart-data";
 
-function hit(dcYear: number, tax: number): SearchHit {
+function hit(dcYear: number, tax: number, companyYear = 2030): SearchHit {
   return {
-    receiptYears: { company: 2030, dc: dcYear },
+    receiptYears: { company: companyYear, dc: dcYear },
     result: { totalTaxYen: tax } as SearchHit["result"],
   };
 }
 
+const benefits = [
+  { id: "company", kind: "company" as const, incomeYen: 0, receiptYear: 2030, serviceYears: 30 },
+  { id: "dc", kind: "dc" as const, incomeYen: 0, receiptYear: 2030, serviceYears: 20, optimizeReceiptYear: true },
+];
+
 describe("searchLinePoints", () => {
-  it("plots the varying DC year against the lowest tax at that year", () => {
-    const { axisLabel, points } = searchLinePoints(
+  it("plots DC receipt age from 60 to 75, keeping the lowest tax at that age", () => {
+    const line = searchLinePoints(
       [hit(2031, 1_500_000), hit(2032, 1_200_000), hit(2031, 1_800_000), hit(2033, 1_200_000)],
-      [
-        { id: "company", kind: "company", incomeYen: 0, receiptYear: 2030, serviceYears: 30 },
-        { id: "dc", kind: "dc", incomeYen: 0, receiptYear: 2030, serviceYears: 20 },
-      ],
+      benefits,
+      1965,
     );
-    expect(axisLabel).toContain("iDeCo");
-    expect(points).toEqual([
-      { year: 2031, taxYen: 1_500_000 },
-      { year: 2032, taxYen: 1_200_000 },
-      { year: 2033, taxYen: 1_200_000 },
+    expect(line.axisLabel).toContain("受取年齢");
+    expect(line.axisMin).toBe(60);
+    expect(line.axisMax).toBe(75);
+    expect(line.points).toEqual([
+      { age: 66, year: 2031, taxYen: 1_500_000, detail: "会社退職金 2030年" },
+      { age: 67, year: 2032, taxYen: 1_200_000, detail: "会社退職金 2030年" },
+      { age: 68, year: 2033, taxYen: 1_200_000, detail: "会社退職金 2030年" },
     ]);
-    expect(valleyYears(points)).toEqual([2032, 2033]);
+    expect(line.optimizedPoints).toBeNull();
+    expect(valleyAges(line.points)).toEqual([67, 68]);
   });
 
-  it("plots the benefit marked for search even when another year varies more", () => {
+  it("separates the fixed line from the line that also moves other receipt years", () => {
     const hits: SearchHit[] = [
-      {
-        receiptYears: { company: 2030, dc: 2031 },
-        result: { totalTaxYen: 2_000_000 } as SearchHit["result"],
-      },
-      {
-        receiptYears: { company: 2031, dc: 2031 },
-        result: { totalTaxYen: 1_000_000 } as SearchHit["result"],
-      },
+      hit(2031, 2_000_000, 2030),
+      hit(2031, 1_000_000, 2031),
     ];
-    const { axisLabel, points } = searchLinePoints(hits, [
-      { id: "company", kind: "company", incomeYen: 0, receiptYear: 2030, serviceYears: 30 },
-      {
-        id: "dc",
-        kind: "dc",
-        incomeYen: 0,
-        receiptYear: 2031,
-        serviceYears: 20,
-        optimizeReceiptYear: true,
-      },
+    const line = searchLinePoints(hits, benefits, 1965);
+    expect(line.points).toEqual([
+      { age: 66, year: 2031, taxYen: 2_000_000, detail: "会社退職金 2030年" },
     ]);
-    expect(axisLabel).toContain("iDeCo");
-    expect(points).toEqual([{ year: 2031, taxYen: 1_000_000 }]);
+    expect(line.optimizedPoints).toEqual([
+      { age: 66, year: 2031, taxYen: 1_000_000, detail: "会社退職金 2031年" },
+    ]);
   });
 });
 

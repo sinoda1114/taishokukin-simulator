@@ -20,4 +20,10 @@ describe("pickerWindow", () => {
     expect(window.min).toBeLessThanOrEqual(60);
     expect(window.max).toBeGreaterThanOrEqual(75);
   });
+
+  it("opens with 60 as the first age when the list is aligned to the start", () => {
+    const window = pickerWindow(20, 235, 60, "start");
+    expect(window.min).toBe(60);
+    expect(window.max - window.min + 1).toBe(MAX_PICKER_OPTIONS);
+  });
 });

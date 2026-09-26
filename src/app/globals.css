@@ -330,6 +330,15 @@ a {
   stroke-linecap: round;
 }
 
+.chart-line--opt {
+  stroke: var(--pine);
+  stroke-dasharray: 5 4;
+}
+
+.chart-dot--opt {
+  fill: var(--pine);
+}
+
 .chart-dot {
   fill: var(--indigo);
 }

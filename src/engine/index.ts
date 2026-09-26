@@ -15,7 +15,9 @@ export {
   reverseDeemedYears,
   needsDeemedService,
 } from "./deduction";
-export { retirementTaxableYen, taxOnRetirementIncome, nationalTaxYen, residentTaxYen } from "./tax";
+export { retirementTaxableYen, taxOnRetirementIncome, nationalTaxYen, residentTaxYen, incomeTaxBracket } from "./tax";
+export { dcMinimumReceiptAge, membershipYears } from "./dc-age";
+export { formatMonthIntervals } from "./explain";
 export {
   serviceYearsFromMonths,
   overlapYearsFromMonths,

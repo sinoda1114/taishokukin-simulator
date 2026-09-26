@@ -19,7 +19,9 @@ import {
 } from "@/lib/field-validation";
 import {
   answersFromInput,
+  detailedServiceYears,
   inputFromAnswers,
+  keepsDetailedIntervals,
   nextHearingStep,
   prevHearingStep,
   visibleHearingSteps,
@@ -83,10 +85,14 @@ function parseTriplet(
   keys: { income: string; service: string; age: string },
   birthYear: number | null,
   serviceLabel: string,
+  kind: "company" | "dc",
 ): TripletOk | TripletErr {
   const income = parseIncomeYen(raw.income);
   const service = parseServiceYears(raw.service, serviceLabel);
-  const age = parseReceiptAge(raw.age, birthYear);
+  const age = parseReceiptAge(raw.age, birthYear, {
+    kind,
+    serviceYears: service.ok ? service.value : 10,
+  });
   const errors: Record<string, string> = {};
   if (!income.ok) errors[keys.income] = income.error;
   if (!service.ok) errors[keys.service] = service.error;
@@ -106,6 +112,56 @@ function tenureConflict(
     year: birthYear,
     month: birthMonth,
   });
+}
+
+function SimultaneousAge({
+  birthYear,
+  serviceYears,
+  companyAge,
+  dcAge,
+  value,
+  error,
+  onChange,
+}: {
+  birthYear: number | null;
+  serviceYears: number;
+  companyAge: string;
+  dcAge: string;
+  value: string;
+  error?: string;
+  onChange: (raw: string) => void;
+}) {
+  const shared = /^\d+$/.test(value.trim()) ? Number(value.trim()) : null;
+  const company = /^\d+$/.test(companyAge.trim()) ? Number(companyAge.trim()) : null;
+  const dc = /^\d+$/.test(dcAge.trim()) ? Number(dcAge.trim()) : null;
+  const year = birthYear !== null && shared !== null ? receiptYearFromAge(birthYear, shared) : null;
+  return (
+    <Stack gap="xs">
+      <Text size="sm" c="var(--ink-muted)" lh={1.6}>
+        同時に受け取る年齢をここで決めます。DC の受取可能年に入らない年齢は選べません。選んだ DC の年齢は、この欄と違うときだけ変わります。
+      </Text>
+      <ReceiptAgeField
+        label="両方の受取年齢"
+        value={value}
+        birthYear={birthYear}
+        kind="dc"
+        serviceYears={serviceYears}
+        error={error}
+        onChange={onChange}
+      />
+      {shared !== null && year !== null ? (
+        <Text size="sm" lh={1.6}>
+          両方を{shared}歳（{year}年）で受け取ります。
+          {dc !== null && shared !== dc
+            ? ` DC の受取年齢は${dc}歳から${shared}歳に変わります。`
+            : " DC の受取年齢はそのままです。"}
+          {company !== null && shared !== company
+            ? ` 会社の受取年齢は${company}歳から${shared}歳に変わります。`
+            : " 会社の受取年齢はそのままです。"}
+        </Text>
+      ) : null}
+    </Stack>
+  );
 }
 
 export function HearingFlow({
@@ -130,9 +186,11 @@ export function HearingFlow({
     dcReceiptAge: String(seed.dcReceiptAge),
     hasExtra: seed.hasExtra,
     goal: seed.goal,
+    simultaneousAge: String(seed.simultaneousAge ?? seed.dcReceiptAge),
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [step, setStep] = useState<HearingStepId>("birth");
+  const [sharedTouched, setSharedTouched] = useState(false);
   const steps = useMemo(() => visibleHearingSteps(draft.hasDc), [draft.hasDc]);
   const index = Math.max(0, steps.indexOf(step));
   const copy = STEP_COPY[step];
@@ -150,6 +208,11 @@ export function HearingFlow({
     });
   }
 
+  const prevCompany = initial.benefits.find((benefit) => benefit.kind === "company");
+  const prevDc = initial.benefits.find((benefit) => benefit.kind === "dc");
+  const dcServiceParsed = parseServiceYears(draft.dcServiceYears, "拠出年数");
+  const dcServiceYears = dcServiceParsed.ok ? dcServiceParsed.value : 10;
+
   function parsedAnswers(): { ok: true; value: HearingAnswers } | { ok: false; errors: Record<string, string> } {
     const nextErrors: Record<string, string> = {};
     const birthY = parseBirthYear(draft.birthYear);
@@ -165,9 +228,10 @@ export function HearingFlow({
       { income: "companyIncomeYen", service: "companyServiceYears", age: "companyReceiptAge" },
       birthY.ok ? birthY.value : null,
       "勤続年数",
+      "company",
     );
     if (!company.ok) Object.assign(nextErrors, company.errors);
-    else if (birthY.ok) {
+    else if (birthY.ok && !keepsDetailedIntervals(prevCompany, company.service)) {
       const conflict = tenureConflict(company.service, company.age, birthY.value, birthM.ok ? birthM.value : null);
       if (conflict) nextErrors.companyReceiptAge = conflict;
     }
@@ -177,11 +241,21 @@ export function HearingFlow({
           { income: "dcIncomeYen", service: "dcServiceYears", age: "dcReceiptAge" },
           birthY.ok ? birthY.value : null,
           "拠出年数",
+          "dc",
         )
       : null;
     if (dc && !dc.ok) Object.assign(nextErrors, dc.errors);
-    if (dc?.ok && birthY.ok && company.ok) {
-      const storedAge = draft.goal === "simultaneous" ? company.age : dc.age;
+    let simultaneousAge: number | undefined;
+    if (draft.hasDc && draft.goal === "simultaneous") {
+      const shared = parseReceiptAge(draft.simultaneousAge, birthY.ok ? birthY.value : null, {
+        kind: "dc",
+        serviceYears: dc?.ok ? dc.service : dcServiceYears,
+      });
+      if (!shared.ok) nextErrors.simultaneousAge = shared.error;
+      else simultaneousAge = shared.value;
+    }
+    if (dc?.ok && birthY.ok && !keepsDetailedIntervals(prevDc, dc.service)) {
+      const storedAge = simultaneousAge ?? dc.age;
       const conflict = tenureConflict(dc.service, storedAge, birthY.value, birthM.ok ? birthM.value : null);
       if (conflict) nextErrors.dcReceiptAge = conflict;
     }
@@ -201,6 +275,7 @@ export function HearingFlow({
         dcReceiptAge: dc?.ok ? dc.age : company.age,
         hasExtra: draft.hasExtra,
         goal: draft.goal,
+        simultaneousAge,
       },
     };
   }
@@ -223,9 +298,10 @@ export function HearingFlow({
         { income: "companyIncomeYen", service: "companyServiceYears", age: "companyReceiptAge" },
         birthYear,
         "勤続年数",
+        "company",
       );
       if (!company.ok) Object.assign(nextErrors, company.errors);
-      else if (birthYear !== null) {
+      else if (birthYear !== null && !keepsDetailedIntervals(prevCompany, company.service)) {
         const month = parseMonth(draft.birthMonth, "生月");
         const conflict = tenureConflict(company.service, company.age, birthYear, month.ok ? month.value : null);
         if (conflict) nextErrors.companyReceiptAge = conflict;
@@ -237,8 +313,16 @@ export function HearingFlow({
         { income: "dcIncomeYen", service: "dcServiceYears", age: "dcReceiptAge" },
         birthYear,
         "拠出年数",
+        "dc",
       );
       if (!dc.ok) Object.assign(nextErrors, dc.errors);
+    }
+    if (step === "goal" && draft.hasDc && draft.goal === "simultaneous") {
+      const shared = parseReceiptAge(draft.simultaneousAge, birthYear, {
+        kind: "dc",
+        serviceYears: dcServiceYears,
+      });
+      if (!shared.ok) nextErrors.simultaneousAge = shared.error;
     }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -251,7 +335,9 @@ export function HearingFlow({
       const parsed = parsedAnswers();
       if (!parsed.ok) {
         setErrors(parsed.errors);
-        if (parsed.errors.dcIncomeYen || parsed.errors.dcServiceYears || parsed.errors.dcReceiptAge) {
+        if (parsed.errors.simultaneousAge) {
+          setStep("goal");
+        } else if (parsed.errors.dcIncomeYen || parsed.errors.dcServiceYears || parsed.errors.dcReceiptAge) {
           setStep("dc");
         } else if (
           parsed.errors.companyIncomeYen ||
@@ -352,9 +438,17 @@ export function HearingFlow({
             <ReceiptAgeField
               value={draft.companyReceiptAge}
               birthYear={birthYear}
+              kind="company"
               error={errors.companyReceiptAge}
               onChange={(companyReceiptAge) => patch("companyReceiptAge", companyReceiptAge)}
             />
+            {detailedServiceYears(prevCompany) !== null ? (
+              <Text size="sm" c="var(--ink-muted)">
+                {keepsDetailedIntervals(prevCompany, Number(draft.companyServiceYears))
+                  ? "年月で入れた区間は残します。"
+                  : "年数を変えると、年月で入れた区間はやめて、この年数で計算します。"}
+              </Text>
+            ) : null}
           </Stack>
         ) : null}
 
@@ -392,9 +486,31 @@ export function HearingFlow({
             <ReceiptAgeField
               value={draft.dcReceiptAge}
               birthYear={birthYear}
+              kind="dc"
+              serviceYears={dcServiceYears}
               error={errors.dcReceiptAge}
-              onChange={(dcReceiptAge) => patch("dcReceiptAge", dcReceiptAge)}
+              onChange={(dcReceiptAge) => {
+                setDraft((prev) => ({
+                  ...prev,
+                  dcReceiptAge,
+                  simultaneousAge: sharedTouched ? prev.simultaneousAge : dcReceiptAge,
+                }));
+                setErrors((prev) => {
+                  if (!prev.dcReceiptAge && !prev.simultaneousAge) return prev;
+                  const next = { ...prev };
+                  delete next.dcReceiptAge;
+                  if (!sharedTouched) delete next.simultaneousAge;
+                  return next;
+                });
+              }}
             />
+            {detailedServiceYears(prevDc) !== null ? (
+              <Text size="sm" c="var(--ink-muted)">
+                {keepsDetailedIntervals(prevDc, Number(draft.dcServiceYears))
+                  ? "年月で入れた区間は残します。"
+                  : "年数を変えると、年月で入れた区間はやめて、この年数で計算します。"}
+              </Text>
+            ) : null}
           </Stack>
         ) : null}
 
@@ -410,14 +526,35 @@ export function HearingFlow({
         ) : null}
 
         {step === "goal" ? (
-          <div className="choice-row" role="group" aria-label="見たい比較">
-            <Choice selected={draft.goal === "simultaneous"} onClick={() => patch("goal", "simultaneous")}>
-              同時受取
-            </Choice>
-            <Choice selected={draft.goal === "sequence"} onClick={() => patch("goal", "sequence")}>
-              先後の比較
-            </Choice>
-          </div>
+          <Stack gap="sm">
+            <div className="choice-row" role="group" aria-label="見たい比較">
+              <Choice selected={draft.goal === "simultaneous"} onClick={() => patch("goal", "simultaneous")}>
+                同時受取
+              </Choice>
+              <Choice selected={draft.goal === "sequence"} onClick={() => patch("goal", "sequence")}>
+                先後の比較
+              </Choice>
+            </div>
+            {draft.goal === "simultaneous" && draft.hasDc ? (
+              <SimultaneousAge
+                birthYear={birthYear}
+                serviceYears={dcServiceYears}
+                companyAge={draft.companyReceiptAge}
+                dcAge={draft.dcReceiptAge}
+                value={draft.simultaneousAge}
+                error={errors.simultaneousAge}
+                onChange={(simultaneousAge) => {
+                  setSharedTouched(true);
+                  patch("simultaneousAge", simultaneousAge);
+                }}
+              />
+            ) : null}
+            {draft.goal === "sequence" && draft.hasDc ? (
+              <Text size="sm" c="var(--ink-muted)">
+                会社は{draft.companyReceiptAge || "—"}歳、DC は{draft.dcReceiptAge || "—"}歳のまま比べます。DC の年齢は変えません。
+              </Text>
+            ) : null}
+          </Stack>
         ) : null}
 
         <Group className="hit-lg" grow preventGrowOverflow={false} wrap="wrap">

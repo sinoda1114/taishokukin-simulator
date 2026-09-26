@@ -29,6 +29,14 @@ function pickBracket(taxableYen: number, ruleset: TaxRuleset) {
   return ruleset.incomeTaxBrackets[ruleset.incomeTaxBrackets.length - 1];
 }
 
+export function incomeTaxBracket(
+  taxableYen: number,
+  ruleset: TaxRuleset = defaultRuleset,
+): { rateBp: number; deductionYen: number } {
+  const bracket = pickBracket(Math.max(0, taxableYen), ruleset);
+  return { rateBp: bracket.rateBp, deductionYen: bracket.deductionYen };
+}
+
 export function incomeTaxBaseYen(
   taxableYen: number,
   ruleset: TaxRuleset = defaultRuleset,

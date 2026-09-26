@@ -1,3 +1,4 @@
+import { dcMinimumReceiptAge, membershipYears } from "./dc-age";
 import { dcReceiptYears } from "./explain";
 import { defaultRuleset } from "./ruleset";
 import { ageInCalendarYear, freezeServiceIntervals, simulate } from "./simulate";
@@ -19,7 +20,8 @@ function candidateYears(
   if (!benefit.optimizeReceiptYear || benefit.kind !== "dc" || !input.birthYearMonth) {
     return [benefit.receiptYear];
   }
-  return dcReceiptYears(input.birthYearMonth.year, ruleset);
+  const minAge = dcMinimumReceiptAge(membershipYears(benefit), ruleset);
+  return dcReceiptYears(input.birthYearMonth.year, ruleset, minAge);
 }
 
 function cartesian(lists: number[][]): number[][] {

@@ -40,6 +40,11 @@ describe("T1-T4 video restatement", () => {
     expect(year.residentTaxYen).toBe(750_000);
     expect(year.totalTaxYen).toBe(1_861_869);
     expect(result.totalTaxYen).toBe(1_861_869);
+    const national = year.steps.find((step) => step.code === "national");
+    expect(national?.substituted).toContain("23%");
+    expect(national?.substituted).toContain("速算控除");
+    expect(year.steps.find((step) => step.code === "income")?.substituted).toContain("会社退職金（2030年）");
+    expect(year.steps.find((step) => step.code === "periods")?.substituted).toContain("2001年1月〜2030年12月");
   });
 
   it("T2 company 2030 then DC 2035 is 1,368,544 yen", () => {
@@ -266,5 +271,88 @@ describe("short tenure and F2 / search", () => {
     expect(at2035?.result.totalTaxYen).toBe(1_368_544);
     expect(at2040?.result.totalTaxYen).toBe(1_358_202);
     expect(result.best?.receiptYears.dc).toBe(2038);
+  });
+
+  it("starts the DC search at the deferred age when membership is under 10 years", () => {
+    const result = searchReceiptYears(
+      input([
+        company30,
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 5_000_000,
+          serviceYears: 8,
+          receiptYear: 2030,
+          optimizeReceiptYear: true,
+        },
+      ]),
+    );
+    expect(result.combinationCount).toBe(15);
+    expect(result.hits.some((hit) => hit.receiptYears.dc === 2025)).toBe(false);
+    expect(result.hits.some((hit) => hit.receiptYears.dc === 2026)).toBe(true);
+  });
+});
+
+describe("receipt age and contribution end", () => {
+  it("does not tax a DC receipt under the eligible age", () => {
+    const result = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          serviceYears: 20,
+          receiptYear: 2024,
+        },
+      ]),
+    );
+    expect(result.years[0]?.status).toBe("receipt_ineligible");
+    expect(result.totalTaxYen).toBeNull();
+  });
+
+  it("does not extend DC contributions past the receipt year", () => {
+    const withLateEnd = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          serviceYears: 20,
+          receiptYear: 2030,
+          contributionEndAge: 70,
+        },
+      ]),
+    );
+    const plain = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          serviceYears: 20,
+          receiptYear: 2030,
+        },
+      ]),
+    );
+    expect(withLateEnd.totalTaxYen).toBe(plain.totalTaxYen);
+    expect(withLateEnd.warnings.some((warning) => warning.message.includes("受取年を超える拠出"))).toBe(true);
+  });
+
+  it("states the extra membership and deduction when contribution ends by the receipt age", () => {
+    const result = simulate(
+      input([
+        {
+          id: "dc",
+          kind: "dc",
+          incomeYen: 10_000_000,
+          intervals: [{ start: { year: 2011, month: 1 }, end: { year: 2020, month: 12 } }],
+          receiptYear: 2030,
+          contributionEndAge: 65,
+        },
+      ]),
+    );
+    expect(result.years[0]?.serviceYears).toBe(20);
+    expect(result.years[0]?.statutoryDeductionYen).toBe(8_000_000);
+    expect(result.warnings.some((warning) => warning.message.includes("見込み受取額は固定"))).toBe(true);
   });
 });

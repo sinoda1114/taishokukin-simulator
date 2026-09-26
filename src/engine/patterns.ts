@@ -1,3 +1,4 @@
+import { dcMinimumReceiptAge, membershipYears } from "./dc-age";
 import { defaultRuleset } from "./ruleset";
 import { freezeServiceIntervals, simulate, yearOfAge } from "./simulate";
 import type {
@@ -35,14 +36,15 @@ export function buildThreePatterns(
   const dc = frozen.benefits.find((b) => b.kind === "dc");
   if (!company || !dc) return null;
 
-  const age60 = input.birthYearMonth
-    ? yearOfAge(input.birthYearMonth, ruleset.dcReceiptAgeMin)
+  const minAge = dcMinimumReceiptAge(membershipYears(dc), ruleset);
+  const ageMin = input.birthYearMonth
+    ? yearOfAge(input.birthYearMonth, minAge)
     : company.receiptYear - 5;
   const age75 = input.birthYearMonth
     ? yearOfAge(input.birthYearMonth, ruleset.dcReceiptAgeMax)
-    : age60 + (ruleset.dcReceiptAgeMax - ruleset.dcReceiptAgeMin);
+    : ageMin + (ruleset.dcReceiptAgeMax - ruleset.dcReceiptAgeMin);
 
-  const canDc = (year: number) => year >= age60 && year <= age75;
+  const canDc = (year: number) => year >= ageMin && year <= age75;
 
   const rows: Array<{ kind: PatternKind; label: string; companyYear: number; dcYear: number }> =
     [
@@ -56,20 +58,20 @@ export function buildThreePatterns(
         kind: "company_first",
         label: "退職金先",
         companyYear: company.receiptYear,
-        dcYear: Math.min(age75, Math.max(company.receiptYear + 1, age60)),
+        dcYear: Math.min(age75, Math.max(company.receiptYear + 1, ageMin)),
       },
       {
         kind: "dc_first",
         label: "iDeCo先",
         companyYear: company.receiptYear,
-        dcYear: age60,
+        dcYear: ageMin,
       },
     ];
 
   return rows.map((row) => {
     let omitted: string | undefined;
     if (!canDc(row.dcYear)) {
-      omitted = "iDeCoの受取可能年（60〜75歳の暦年）に入りません";
+      omitted = `iDeCoの受取可能年（${minAge}〜${ruleset.dcReceiptAgeMax}歳の暦年）に入りません`;
     } else if (row.kind === "company_first" && row.dcYear <= row.companyYear) {
       omitted = "退職金より後のiDeCo受取年を取れません";
     } else if (row.kind === "dc_first" && row.dcYear >= row.companyYear) {

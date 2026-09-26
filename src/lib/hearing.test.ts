@@ -27,8 +27,8 @@ describe("hearing steps", () => {
 describe("hearing mapping", () => {
   it("round-trips the sample input used for skip", () => {
     const answers = answersFromInput(defaultInput);
-    expect(answers.companyReceiptAge).toBe(65);
-    expect(answers.dcReceiptAge).toBe(65);
+    expect(answers.companyReceiptAge).toBe(60);
+    expect(answers.dcReceiptAge).toBe(60);
     expect(answers.hasExtra).toBe(false);
     expect(answers.goal).toBe("sequence");
     const next = inputFromAnswers(answers);
@@ -54,23 +54,76 @@ describe("hearing mapping", () => {
     expect(input.benefits[0]?.kind).toBe("company");
   });
 
-  it("sets DC receipt to the company year for simultaneous", () => {
+  it("does not overwrite the chosen DC age when simultaneous age is unset", () => {
     const input = inputFromAnswers({
       birthYear: 1965,
       birthMonth: 4,
       companyIncomeYen: 20_000_000,
       companyServiceYears: 30,
-      companyReceiptAge: 65,
+      companyReceiptAge: 55,
       hasDc: true,
       dcIncomeYen: 10_000_000,
       dcServiceYears: 20,
-      dcReceiptAge: 69,
+      dcReceiptAge: 62,
       hasExtra: false,
       goal: "simultaneous",
     });
-    const dc = input.benefits.find((b) => b.kind === "dc");
-    expect(dc?.receiptYear).toBe(2030);
-    expect(dc?.optimizeReceiptYear).toBe(false);
+    expect(input.benefits.find((b) => b.kind === "company")?.receiptYear).toBe(2020);
+    expect(input.benefits.find((b) => b.kind === "dc")?.receiptYear).toBe(2027);
+  });
+
+  it("uses the simultaneous age only after it is stated", () => {
+    const input = inputFromAnswers({
+      birthYear: 1965,
+      birthMonth: 4,
+      companyIncomeYen: 20_000_000,
+      companyServiceYears: 30,
+      companyReceiptAge: 55,
+      hasDc: true,
+      dcIncomeYen: 10_000_000,
+      dcServiceYears: 20,
+      dcReceiptAge: 62,
+      hasExtra: false,
+      goal: "simultaneous",
+      simultaneousAge: 62,
+    });
+    expect(input.benefits.find((b) => b.kind === "company")?.receiptYear).toBe(2027);
+    expect(input.benefits.find((b) => b.kind === "dc")?.receiptYear).toBe(2027);
+    expect(input.benefits.find((b) => b.kind === "dc")?.optimizeReceiptYear).toBe(false);
+  });
+
+  it("keeps year-month intervals when the hearing years are unchanged", () => {
+    const intervals = [
+      { start: { year: 2006, month: 1 }, end: { year: 2015, month: 12 } },
+      { start: { year: 2018, month: 1 }, end: { year: 2022, month: 12 } },
+    ];
+    const previous = {
+      ...defaultInput,
+      benefits: defaultInput.benefits.map((benefit) =>
+        benefit.kind === "dc" ? { ...benefit, intervals } : benefit,
+      ),
+    };
+    const answers = answersFromInput(previous);
+    expect(answers.dcServiceYears).toBe(15);
+    const next = inputFromAnswers(answers, previous);
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.intervals).toEqual(intervals);
+  });
+
+  it("drops intervals only when the hearing year count changes", () => {
+    const intervals = [
+      { start: { year: 2006, month: 1 }, end: { year: 2015, month: 12 } },
+      { start: { year: 2018, month: 1 }, end: { year: 2022, month: 12 } },
+    ];
+    const previous = {
+      ...defaultInput,
+      benefits: defaultInput.benefits.map((benefit) =>
+        benefit.kind === "dc" ? { ...benefit, intervals } : benefit,
+      ),
+    };
+    const answers = { ...answersFromInput(previous), dcServiceYears: 16 };
+    const next = inputFromAnswers(answers, previous);
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.intervals).toBeUndefined();
+    expect(next.benefits.find((benefit) => benefit.kind === "dc")?.serviceYears).toBe(16);
   });
 
   it("appends an extra allowance the user can edit later", () => {
