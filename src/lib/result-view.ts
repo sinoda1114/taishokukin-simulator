@@ -7,10 +7,9 @@ import {
   type RuleMode,
   type SearchResult,
   type SimulationResult,
-  type SimulationWarning,
   type YearMonth,
 } from "@/engine";
-import { KIND_LABELS, RULE_MODE_LABELS } from "@/lib/parse-input";
+import { KIND_LABELS, RULE_MODE_LABELS, formatYen } from "@/lib/parse-input";
 
 export type PatternCardView = {
   pattern: PatternComparison;
@@ -33,6 +32,12 @@ export type NextBestView = {
   net: number | null;
 };
 
+export type YearRowView = {
+  year: number;
+  cells: string[];
+  line: string;
+};
+
 export type ResultView = {
   cards: PatternCardView[] | null;
   currentCaption: string;
@@ -40,15 +45,71 @@ export type ResultView = {
   nextBest: NextBestView | null;
   simultaneousDelta: number | null;
   amendmentDelta: number | null;
-  blocked: SimulationWarning | undefined;
+  showTax: boolean;
+  taxNotice: string | null;
+  disclaimer: string;
+  yearHeaders: string[];
+  yearRows: YearRowView[];
+  amendmentTitle: string;
+  amendmentLead: string;
+  patternTitle: string | null;
+  patternLead: string | null;
+  screenLines: string[];
   regimeLine: string;
   periods: { id: string; text: string }[];
-  ruleModeLabel: string;
   searchNote: string | null;
   searchBestLine: string | null;
   searchBestTax: number | null;
   searchRows: { caption: string; tax: number | null }[];
 };
+
+const SHORT_TENURE_TAX_NOTICE = "勤続5年以下の手当があるため、税額は出していません。";
+const DISCLAIMER =
+  "退職所得の申告書を提出する前提です。出すのは一時金の税額だけで、年金受取は含みません。試算であり、税務助言ではありません。";
+const AMENDMENT_TITLE = "改正前と改正後";
+const PATTERN_TITLE = "同時 / 退職金先 / iDeCo先";
+const PATTERN_LEAD =
+  "この3案の中の最小です。探索全体の最小とは別に出します。差額の基準は、会社の受取年での同時受取です。";
+const YEAR_HEADERS = [
+  "受取年",
+  "収入",
+  "勤続",
+  "控除（調整前）",
+  "控除（調整後）",
+  "課税所得",
+  "所得税",
+  "復興税",
+  "住民税",
+  "税額",
+  "手取り",
+];
+
+function amendmentLead(ruleModeLabel: string): string {
+  return `同じ入力・同じ受取年です。左は改正前に固定、右は改正後に固定した税額です。主計算は「${ruleModeLabel}」です。`;
+}
+
+function buildYearRows(years: SimulationResult["years"]): YearRowView[] {
+  return years.map((year) => {
+    const cells = [
+      String(year.year),
+      formatYen(year.incomeYen),
+      `${year.serviceYears}年`,
+      formatYen(year.statutoryDeductionYen),
+      formatYen(year.deductionAfterAdjustmentYen),
+      formatYen(year.taxableYen),
+      formatYen(year.incomeTaxYen),
+      formatYen(year.reconstructionTaxYen),
+      formatYen(year.residentTaxYen),
+      formatYen(year.totalTaxYen),
+      formatYen(year.netYen),
+    ];
+    return {
+      year: year.year,
+      cells,
+      line: `- ${year.year}年 収入 ${cells[1]} 勤続 ${cells[2]} 控除（調整前） ${cells[3]} 控除（調整後） ${cells[4]} 課税所得 ${cells[5]} 所得税 ${cells[6]} 復興税 ${cells[7]} 住民税 ${cells[8]} 税額 ${cells[9]} 手取り ${cells[10]}`,
+    };
+  });
+}
 
 function receiptCaption(receiptYears: Record<string, number>, benefits: BenefitInput[]): string {
   return Object.entries(receiptYears)
@@ -157,6 +218,13 @@ export function buildResultView(args: {
       ? postAmendment.totalTaxYen - preAmendment.totalTaxYen
       : null;
   const blocked = result.warnings.find((warning) => warning.code === "receipt_ineligible");
+  const showTax = result.totalTaxYen !== null;
+  const taxNotice = blocked ? blocked.message : showTax ? null : SHORT_TENURE_TAX_NOTICE;
+  const yearRows = buildYearRows(result.years);
+  const ruleModeLabel = RULE_MODE_LABELS[ruleMode];
+  const lead = amendmentLead(ruleModeLabel);
+  const patternTitle = cards ? PATTERN_TITLE : null;
+  const patternLead = cards ? PATTERN_LEAD : null;
   const receiptYears = [...new Set(benefits.map((benefit) => benefit.receiptYear))].sort((a, b) => a - b);
   return {
     cards,
@@ -165,10 +233,25 @@ export function buildResultView(args: {
     nextBest,
     simultaneousDelta,
     amendmentDelta,
-    blocked,
+    showTax,
+    taxNotice,
+    disclaimer: DISCLAIMER,
+    yearHeaders: [...YEAR_HEADERS],
+    yearRows,
+    amendmentTitle: AMENDMENT_TITLE,
+    amendmentLead: lead,
+    patternTitle,
+    patternLead,
+    screenLines: [
+      ...(taxNotice ? [taxNotice] : []),
+      DISCLAIMER,
+      AMENDMENT_TITLE,
+      lead,
+      ...(patternTitle && patternLead ? [patternTitle, patternLead] : []),
+      ...yearRows.map((row) => row.line),
+    ],
     regimeLine: receiptYears.map((year) => autoRegime(year)).join("。"),
     periods: benefits.map((benefit) => ({ id: benefit.id, text: periodLine(benefit, birth) })),
-    ruleModeLabel: RULE_MODE_LABELS[ruleMode],
     searchNote: search
       ? search.truncated
         ? `組合せが ${search.combinationCount} あり、${search.hits.length} 件で打ち切りました。`

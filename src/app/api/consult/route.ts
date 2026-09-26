@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { CONSULT_BUSY, CONSULT_FAILED, CONSULT_UNAVAILABLE } from "@/lib/consult-copy";
-import { parseConsultPayload, requestGeminiReply, takeConsultSlot } from "@/lib/consult-gemini";
+import { consultSlotKey, parseConsultPayload, requestGeminiReply, takeConsultSlot } from "@/lib/consult-gemini";
 
 export async function POST(request: Request) {
   let raw: unknown;
@@ -22,8 +22,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: CONSULT_UNAVAILABLE }, { status: 503 });
   }
 
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  if (!takeConsultSlot(forwarded || "local", Date.now())) {
+  if (!takeConsultSlot(consultSlotKey(request.headers.get("x-real-ip")), Date.now())) {
     return NextResponse.json({ error: CONSULT_BUSY }, { status: 429 });
   }
 

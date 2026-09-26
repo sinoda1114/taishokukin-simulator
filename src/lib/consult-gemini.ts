@@ -48,7 +48,11 @@ export function parseConsultPayload(raw: unknown): ConsultPayload {
 }
 
 export function geminiGenerateUrl(): string {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent`;
+  const url = new URL(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_ID}:generateContent`,
+  );
+  url.search = "";
+  return url.toString();
 }
 
 export function buildGeminiRequest(payload: ConsultPayload): {
@@ -115,6 +119,42 @@ export function readGeminiReply(payload: unknown): string {
 const slots = new Map<string, number[]>();
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 8;
+const SLOT_LIMIT = 1000;
+
+export const CONSULT_SHARED_SLOT_KEY = "shared";
+
+export function consultSlotKey(realIp: string | null): string {
+  const ip = realIp?.trim() ?? "";
+  return ip.length > 0 ? ip : CONSULT_SHARED_SLOT_KEY;
+}
+
+function pruneExpiredSlots(now: number): void {
+  for (const [key, times] of slots) {
+    const recent = times.filter((time) => now - time < WINDOW_MS);
+    if (recent.length === 0) slots.delete(key);
+    else if (recent.length !== times.length) slots.set(key, recent);
+  }
+}
+
+function dropOldestSlots(limit: number): void {
+  if (slots.size <= limit) return;
+  const ranked = [...slots.entries()].sort((left, right) => {
+    const leftTime = Math.min(...left[1]);
+    const rightTime = Math.min(...right[1]);
+    if (leftTime !== rightTime) return leftTime - rightTime;
+    if (left[0] < right[0]) return -1;
+    if (left[0] > right[0]) return 1;
+    return 0;
+  });
+  for (const [key] of ranked) {
+    if (slots.size <= limit) return;
+    slots.delete(key);
+  }
+}
+
+export function resetConsultSlots(): void {
+  slots.clear();
+}
 
 export function takeConsultSlot(key: string, now: number): boolean {
   const recent = (slots.get(key) ?? []).filter((time) => now - time < WINDOW_MS);
@@ -124,12 +164,17 @@ export function takeConsultSlot(key: string, now: number): boolean {
   }
   recent.push(now);
   slots.set(key, recent);
-  if (slots.size > 1000) slots.clear();
+  if (slots.size > SLOT_LIMIT) {
+    pruneExpiredSlots(now);
+    dropOldestSlots(SLOT_LIMIT);
+  }
   return true;
 }
 
 export async function requestGeminiReply(apiKey: string, payload: ConsultPayload): Promise<string> {
-  const response = await fetch(geminiGenerateUrl(), {
+  const url = geminiGenerateUrl();
+  if (new URL(url).search !== "") throw new Error("upstream");
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

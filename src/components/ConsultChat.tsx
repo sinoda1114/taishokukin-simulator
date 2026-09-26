@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { Modal, Stack, Text, Textarea } from "@mantine/core";
-import { CONSULT_FAILED, CONSULT_UNAVAILABLE, trimConsultMessages } from "@/lib/consult-copy";
-
-type Turn = { role: "user" | "assistant"; text: string };
-
-function readField(body: unknown, key: "error" | "reply"): string {
-  if (!body || typeof body !== "object" || !(key in body)) return "";
-  const value = (body as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : "";
-}
+import {
+  CONSULT_FAILED,
+  CONSULT_UNAVAILABLE,
+  consultWireMessages,
+  createConsultTurn,
+  readConsultField,
+  trimConsultMessages,
+  type ConsultTurn,
+} from "@/lib/consult-copy";
 
 export function ConsultChat({
   open,
@@ -25,12 +25,12 @@ export function ConsultChat({
 }) {
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [turns, setTurns] = useState<ConsultTurn[]>([]);
 
   async function send() {
     const text = draft.trim();
     if (!text || pending) return;
-    const next = trimConsultMessages([...turns, { role: "user" as const, text }]);
+    const next = trimConsultMessages([...turns, createConsultTurn("user", text)]);
     setTurns(next);
     setDraft("");
     setPending(true);
@@ -38,23 +38,23 @@ export function ConsultChat({
       const response = await fetch("/api/consult", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary, messages: next }),
+        body: JSON.stringify({ summary, messages: consultWireMessages(next) }),
       });
-      const body: unknown = await response.json().catch(() => null);
-      const error = readField(body, "error");
-      const reply = readField(body, "reply");
+      const body: unknown = await response.json().catch(() => ({}));
+      const error = readConsultField(body, "error");
+      const reply = readConsultField(body, "reply");
       if (error === CONSULT_UNAVAILABLE) {
-        setTurns((prev) => [...prev, { role: "assistant", text: CONSULT_UNAVAILABLE }]);
+        setTurns((prev) => [...prev, createConsultTurn("assistant", CONSULT_UNAVAILABLE)]);
         return;
       }
       const safeError = error.length > 0 && error.length <= 80 && !error.includes("\n") ? error : "";
       if (!response.ok || !reply) {
-        setTurns((prev) => [...prev, { role: "assistant", text: safeError || CONSULT_FAILED }]);
+        setTurns((prev) => [...prev, createConsultTurn("assistant", safeError || CONSULT_FAILED)]);
         return;
       }
-      setTurns((prev) => [...prev, { role: "assistant", text: reply }]);
+      setTurns((prev) => [...prev, createConsultTurn("assistant", reply)]);
     } catch {
-      setTurns((prev) => [...prev, { role: "assistant", text: CONSULT_FAILED }]);
+      setTurns((prev) => [...prev, createConsultTurn("assistant", CONSULT_FAILED)]);
     } finally {
       setPending(false);
     }
@@ -97,9 +97,9 @@ export function ConsultChat({
                 画面に出ている数字について聞けます。
               </Text>
             ) : (
-              turns.map((turn, index) => (
+              turns.map((turn) => (
                 <div
-                  key={`${turn.role}-${index}`}
+                  key={turn.id}
                   className={turn.role === "user" ? "consult-turn consult-turn--user" : "consult-turn"}
                 >
                   <Text size="sm" fw={600} c={turn.role === "user" ? "var(--indigo)" : "var(--ink)"}>

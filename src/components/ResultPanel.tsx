@@ -40,7 +40,29 @@ export function ResultPanel({
     preAmendment,
     postAmendment,
   });
-  const { cards, currentCaption, recommended, nextBest, simultaneousDelta, amendmentDelta, blocked, regimeLine, periods, ruleModeLabel, searchNote, searchBestLine, searchBestTax, searchRows } = view;
+  const {
+    cards,
+    currentCaption,
+    recommended,
+    nextBest,
+    simultaneousDelta,
+    amendmentDelta,
+    showTax,
+    taxNotice,
+    disclaimer,
+    yearHeaders,
+    yearRows,
+    amendmentTitle,
+    amendmentLead,
+    patternTitle,
+    patternLead,
+    regimeLine,
+    periods,
+    searchNote,
+    searchBestLine,
+    searchBestTax,
+    searchRows,
+  } = view;
   const line = useMemo(
     () => (search && birth ? searchLinePoints(search.hits, benefits, birth.year) : null),
     [benefits, birth, search],
@@ -58,11 +80,7 @@ export function ResultPanel({
             <Text size="sm" mt={4} c="var(--ink-muted)">
               {currentCaption}
             </Text>
-            {result.totalTaxYen === null ? (
-              <Text className="yen" fw={600} fz={20} mt="xs">
-                —
-              </Text>
-            ) : (
+            {showTax ? (
               <>
                 <Text size="sm" c="dimmed" mt="xs">
                   合計税額
@@ -72,6 +90,10 @@ export function ResultPanel({
                   手取り {formatYen(result.totalNetYen)}
                 </Text>
               </>
+            ) : (
+              <Text className="yen" fw={600} fz={20} mt="xs">
+                —
+              </Text>
             )}
           </div>
           {recommended ? (
@@ -90,13 +112,9 @@ export function ResultPanel({
             </div>
           ) : null}
         </SimpleGrid>
-        {blocked ? (
+        {taxNotice ? (
           <Alert color="yellow" mt="sm">
-            {blocked.message}
-          </Alert>
-        ) : result.totalTaxYen === null ? (
-          <Alert color="yellow" mt="sm">
-            勤続5年以下の手当があるため、税額は出していません。
+            {taxNotice}
           </Alert>
         ) : null}
         {nextBest ? (
@@ -112,7 +130,7 @@ export function ResultPanel({
           </Text>
         ) : null}
         <Text size="sm" mt="sm" lh={1.6}>
-          退職所得の申告書を提出する前提です。出すのは一時金の税額だけで、年金受取は含みません。試算であり、税務助言ではありません。
+          {disclaimer}
         </Text>
         <Stack gap={4} mt="sm">
           {periods.map((period) => (
@@ -138,9 +156,9 @@ export function ResultPanel({
       </div>
 
       <div>
-        <Title order={2}>改正前と改正後</Title>
+        <Title order={2}>{amendmentTitle}</Title>
         <Text size="sm" c="dimmed" mt={4} mb="sm">
-          同じ入力・同じ受取年です。左は改正前に固定、右は改正後に固定した税額です。主計算は「{ruleModeLabel}」です。
+          {amendmentLead}
         </Text>
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
           <div className="ledger-cell">
@@ -171,11 +189,11 @@ export function ResultPanel({
         </Text>
       </div>
 
-      {cards ? (
+      {cards && patternTitle && patternLead ? (
         <div>
-          <Title order={2}>同時 / 退職金先 / iDeCo先</Title>
+          <Title order={2}>{patternTitle}</Title>
           <Text size="sm" c="dimmed" mt={4} mb="sm">
-            この3案の中の最小です。探索全体の最小とは別に出します。差額の基準は、会社の受取年での同時受取です。
+            {patternLead}
           </Text>
           <PatternBars
             rows={cards.map(({ pattern, tax, isBest, years }) => ({
@@ -231,33 +249,19 @@ export function ResultPanel({
           <Table withRowBorders>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>受取年</Table.Th>
-                <Table.Th>収入</Table.Th>
-                <Table.Th>勤続</Table.Th>
-                <Table.Th>控除（調整前）</Table.Th>
-                <Table.Th>控除（調整後）</Table.Th>
-                <Table.Th>課税所得</Table.Th>
-                <Table.Th>所得税</Table.Th>
-                <Table.Th>復興税</Table.Th>
-                <Table.Th>住民税</Table.Th>
-                <Table.Th>税額</Table.Th>
-                <Table.Th>手取り</Table.Th>
+                {yearHeaders.map((header) => (
+                  <Table.Th key={header}>{header}</Table.Th>
+                ))}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {result.years.map((year) => (
-                <Table.Tr key={year.year}>
-                  <Table.Td>{year.year}</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.incomeYen)}</Table.Td>
-                  <Table.Td>{year.serviceYears}年</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.statutoryDeductionYen)}</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.deductionAfterAdjustmentYen)}</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.taxableYen)}</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.incomeTaxYen)}</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.reconstructionTaxYen)}</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.residentTaxYen)}</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.totalTaxYen)}</Table.Td>
-                  <Table.Td className="yen">{formatYen(year.netYen)}</Table.Td>
+              {yearRows.map((row) => (
+                <Table.Tr key={row.year}>
+                  {row.cells.map((cell, index) => (
+                    <Table.Td key={yearHeaders[index]} className={index === 0 || index === 2 ? undefined : "yen"}>
+                      {cell}
+                    </Table.Td>
+                  ))}
                 </Table.Tr>
               ))}
             </Table.Tbody>

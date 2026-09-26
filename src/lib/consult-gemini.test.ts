@@ -4,9 +4,11 @@ import {
   CONSULT_SYSTEM_INSTRUCTION,
   GEMINI_MODEL_ID,
   buildGeminiRequest,
+  consultSlotKey,
   geminiGenerateUrl,
   parseConsultPayload,
   readGeminiReply,
+  resetConsultSlots,
   takeConsultSlot,
 } from "@/lib/consult-gemini";
 
@@ -18,9 +20,10 @@ const payload = parseConsultPayload({
 describe("consult gemini request", () => {
   it("pins the stable model from the current model list", () => {
     expect(GEMINI_MODEL_ID).toBe("gemini-3.8-flash");
-    expect(geminiGenerateUrl()).toBe(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
-    );
+    const url = geminiGenerateUrl();
+    expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+    expect(new URL(url).search).toBe("");
+    expect(url).not.toContain("key=");
   });
 
   it("fixes the explanation rules in Japanese and does not ask for a new tax figure", () => {
@@ -79,7 +82,42 @@ describe("consult gemini request", () => {
     expect(trimmed.length).toBeLessThanOrEqual(16);
   });
 
+  it("uses x-real-ip and a shared bucket when that header is missing", () => {
+    expect(consultSlotKey(null)).toBe("shared");
+    expect(consultSlotKey("")).toBe("shared");
+    expect(consultSlotKey("  ")).toBe("shared");
+    expect(consultSlotKey(" 203.0.113.5 ")).toBe("203.0.113.5");
+  });
+
+  it("drops expired slots before the oldest live key", () => {
+    resetConsultSlots();
+    const now = 10_000_000;
+    for (let index = 0; index < 1000; index += 1) {
+      expect(takeConsultSlot(`expired-${index}`, now - 60_001)).toBe(true);
+    }
+    for (let index = 0; index < 8; index += 1) {
+      expect(takeConsultSlot("keeper", now + index)).toBe(true);
+    }
+    expect(takeConsultSlot("keeper", now + 8)).toBe(false);
+  });
+
+  it("drops the oldest live key when the map is still over the cap", () => {
+    resetConsultSlots();
+    const base = 20_000_000;
+    for (let index = 0; index < 8; index += 1) expect(takeConsultSlot("oldest", base + index)).toBe(true);
+    for (let index = 0; index < 8; index += 1) {
+      expect(takeConsultSlot("keeper", base + 10_000 + index)).toBe(true);
+    }
+    for (let index = 0; index < 998; index += 1) {
+      expect(takeConsultSlot(`pad-${index}`, base + 20_000 + index)).toBe(true);
+    }
+    expect(takeConsultSlot("extra", base + 30_000)).toBe(true);
+    expect(takeConsultSlot("keeper", base + 30_001)).toBe(false);
+    expect(takeConsultSlot("oldest", base + 30_001)).toBe(true);
+  });
+
   it("stops a burst before the ninth call in a minute", () => {
+    resetConsultSlots();
     const key = "burst-test";
     for (let index = 0; index < 8; index += 1) {
       expect(takeConsultSlot(key, 1_000 + index)).toBe(true);
