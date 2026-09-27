@@ -55,6 +55,7 @@ export type ResultView = {
   simultaneousDelta: number | null;
   amendmentDelta: number | null;
   showTax: boolean;
+  showAmendment: boolean;
   taxNotice: string | null;
   disclaimer: string;
   yearHeaders: string[];
@@ -278,6 +279,7 @@ export function buildResultView(args: {
   const blocked = result.warnings.find((warning) => warning.code === "receipt_ineligible");
   const noBenefits = result.warnings.some((warning) => warning.code === "no_benefits");
   const showTax = result.totalTaxYen !== null;
+  const showAmendment = !noBenefits;
   const taxNotice = blocked ? blocked.message : showTax || noBenefits ? null : SHORT_TENURE_TAX_NOTICE;
   const yearRows = buildYearRows(result.years);
   const ruleModeLabel = RULE_MODE_LABELS[ruleMode];
@@ -316,6 +318,7 @@ export function buildResultView(args: {
     simultaneousDelta,
     amendmentDelta,
     showTax,
+    showAmendment,
     taxNotice,
     disclaimer: DISCLAIMER,
     yearHeaders: [...YEAR_HEADERS],
@@ -344,15 +347,19 @@ export function buildResultView(args: {
         : []),
       ...(nextBest ? [nextBest.line] : []),
       ...(simultaneousLine ? [simultaneousLine] : []),
-      AMENDMENT_TITLE,
-      lead,
-      PRE_FIXED_LABEL,
-      preFixedAmount,
-      preFixedNetLine,
-      POST_FIXED_LABEL,
-      postFixedAmount,
-      postFixedNetLine,
-      amendmentDeltaLine,
+      ...(showAmendment
+        ? [
+            AMENDMENT_TITLE,
+            lead,
+            PRE_FIXED_LABEL,
+            preFixedAmount,
+            preFixedNetLine,
+            POST_FIXED_LABEL,
+            postFixedAmount,
+            postFixedNetLine,
+            amendmentDeltaLine,
+          ]
+        : []),
       ...(patternTitle && patternLead ? [patternTitle, patternLead, ...(cards ?? []).map((card) => card.line)] : []),
       ...(searchBestText ? [searchBestText] : []),
       ...searchRows.map((row) => row.line),

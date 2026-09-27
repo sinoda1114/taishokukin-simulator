@@ -16,17 +16,21 @@ import {
   Title,
 } from "@mantine/core";
 import {
-  ageInCalendarYear,
   buildThreePatterns,
   searchReceiptYears,
   simulate,
-  yearOfAge,
   type BenefitInput,
   type SimulationInput,
 } from "@/engine";
 import { isRuleMode, RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
 import { defaultInput } from "@/lib/default-input";
-import { birthYearReceiptError, defaultReceiptYear, FIELD_RANGES } from "@/lib/field-ranges";
+import {
+  birthYearReceiptError,
+  defaultReceiptYear,
+  FIELD_RANGES,
+  receiptYearAfterBirthChange,
+  receiptYearWithoutBirth,
+} from "@/lib/field-ranges";
 import { parseBirthYear, parseMonth } from "@/lib/field-validation";
 import { buildConsultSummary } from "@/lib/consult-summary";
 import { HearingFlow } from "./HearingFlow";
@@ -137,7 +141,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
         benefits: previousBirth
           ? prev.benefits.map((benefit) => ({
               ...benefit,
-              receiptYear: yearOfAge(nextBirth, ageInCalendarYear(previousBirth, benefit.receiptYear)),
+              receiptYear: receiptYearAfterBirthChange(benefit, previousBirth.year, nextBirth.year),
             }))
           : prev.benefits,
       };
@@ -153,9 +157,12 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
 
   function addBenefit() {
     if (input.benefits.length >= 6) return;
+    const sampleBirth = defaultInput.birthYearMonth?.year;
     const receiptYear = input.birthYearMonth
       ? defaultReceiptYear(input.birthYearMonth.year)
-      : (input.benefits[0]?.receiptYear ?? 2025);
+      : sampleBirth === undefined
+        ? null
+        : receiptYearWithoutBirth(sampleBirth);
     if (receiptYear === null) return;
     setInput((prev) => ({
       ...prev,
@@ -278,6 +285,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 key={benefit.id}
                 index={index}
                 benefit={benefit}
+                benefits={input.benefits}
                 birth={input.birthYearMonth}
                 onChange={(patch) => updateBenefit(benefit.id, patch)}
                 onRemove={() => removeBenefit(benefit.id)}

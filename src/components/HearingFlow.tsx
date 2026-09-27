@@ -15,11 +15,11 @@ import {
   receiptYearFromAge,
 } from "@/lib/field-validation";
 import {
-  answersFromInput,
   detailedServiceYears,
   hearingGoalChange,
   hearingStepErrorKeys,
   hearingStepForErrors,
+  hearingDraft,
   inputFromAnswers,
   keepsDetailedIntervals,
   nextHearingStep,
@@ -91,21 +91,7 @@ export function HearingFlow({
   onSkip: () => void;
   onComplete: (input: SimulationInput) => void;
 }) {
-  const seed = useMemo(() => answersFromInput(initial), [initial]);
-  const [draft, setDraft] = useState<HearingDraft>({
-    birthYear: String(seed.birthYear),
-    birthMonth: String(seed.birthMonth),
-    hasCompany: seed.hasCompany,
-    companyIncomeYen: String(seed.companyIncomeYen),
-    companyServiceYears: String(seed.companyServiceYears),
-    companyReceiptAge: String(seed.companyReceiptAge),
-    hasDc: seed.hasDc,
-    dcIncomeYen: String(seed.dcIncomeYen),
-    dcServiceYears: String(seed.dcServiceYears),
-    dcReceiptAge: String(seed.dcReceiptAge),
-    hasExtra: seed.hasExtra,
-    goal: seed.goal,
-  });
+  const [draft, setDraft] = useState<HearingDraft>(() => hearingDraft(initial));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [step, setStep] = useState<HearingStepId>("birth");
   const [companyAgeBeforeShared, setCompanyAgeBeforeShared] = useState<string | null>(null);

@@ -11,6 +11,7 @@ import {
   DEFAULT_RECEIPT_AGE,
   generalReceiptAgeRange,
   receiptAgeRange,
+  receiptYearAfterBirthChange,
 } from "./field-ranges";
 import {
   parseBirthYear,
@@ -25,17 +26,17 @@ import { defaultInput } from "./default-input";
 
 export type HearingGoal = "simultaneous" | "sequence";
 
+export type HearingSlot = {
+  incomeYen: number;
+  serviceYears: number;
+  receiptAge: number;
+};
+
 export type HearingAnswers = {
   birthYear: number;
   birthMonth: number;
-  hasCompany: boolean;
-  companyIncomeYen: number;
-  companyServiceYears: number;
-  companyReceiptAge: number;
-  hasDc: boolean;
-  dcIncomeYen: number;
-  dcServiceYears: number;
-  dcReceiptAge: number;
+  company: HearingSlot | null;
+  dc: HearingSlot | null;
   hasExtra: boolean;
   goal: HearingGoal;
 };
@@ -142,14 +143,20 @@ function unusedReceiptYear(benefits: BenefitInput[], birthYear: number): number 
 
 function alignedExtraReceiptYear(
   benefit: BenefitInput,
-  previousBirthYear: number | undefined,
+  previousBirthYear: number,
   nextBirthYear: number,
-): number | null {
-  const range = receiptAgeRange(nextBirthYear, benefit.kind, benefit.serviceYears);
-  if (range.min > range.max) return null;
-  const age =
-    previousBirthYear === undefined ? DEFAULT_RECEIPT_AGE : benefit.receiptYear - previousBirthYear;
-  return nextBirthYear + Math.min(range.max, Math.max(range.min, age));
+): number {
+  return receiptYearAfterBirthChange(benefit, previousBirthYear, nextBirthYear);
+}
+
+function hearingBirth(input: SimulationInput): { year: number; month: number } {
+  return input.birthYearMonth ?? defaultInput.birthYearMonth ?? { year: 1965, month: 4 };
+}
+
+function kindHasSlot(kind: BenefitInput["kind"], answers: HearingAnswers): boolean {
+  if (kind === "company") return answers.company !== null;
+  if (kind === "dc") return answers.dc !== null;
+  return true;
 }
 
 export function answersFromInput(input: SimulationInput): HearingAnswers {
@@ -157,20 +164,64 @@ export function answersFromInput(input: SimulationInput): HearingAnswers {
   const dc = firstOfKind(input.benefits, "dc");
   const extra = input.benefits.some((benefit) => !isPrimary(benefit, company, dc));
   const yearsDiffer = Boolean(dc && company && dc.receiptYear !== company.receiptYear);
-  const birth = input.birthYearMonth ?? defaultInput.birthYearMonth ?? { year: 1965, month: 4 };
+  const birth = hearingBirth(input);
   return {
     birthYear: birth.year,
     birthMonth: birth.month,
-    hasCompany: Boolean(company),
-    companyIncomeYen: company?.incomeYen ?? sampleCompany?.incomeYen ?? 0,
-    companyServiceYears: shownServiceYears(company, sampleCompany?.serviceYears ?? 1),
-    companyReceiptAge: company ? ageInCalendarYear(birth, company.receiptYear) : DEFAULT_RECEIPT_AGE,
-    hasDc: Boolean(dc),
-    dcIncomeYen: dc?.incomeYen ?? sampleDc?.incomeYen ?? 0,
-    dcServiceYears: shownServiceYears(dc, sampleDc?.serviceYears ?? 1),
-    dcReceiptAge: dc ? ageInCalendarYear(birth, dc.receiptYear) : DEFAULT_RECEIPT_AGE,
+    company: company
+      ? {
+          incomeYen: company.incomeYen,
+          serviceYears: shownServiceYears(company, sampleCompany?.serviceYears ?? 1),
+          receiptAge: ageInCalendarYear(birth, company.receiptYear),
+        }
+      : null,
+    dc: dc
+      ? {
+          incomeYen: dc.incomeYen,
+          serviceYears: shownServiceYears(dc, sampleDc?.serviceYears ?? 1),
+          receiptAge: ageInCalendarYear(birth, dc.receiptYear),
+        }
+      : null,
     hasExtra: extra,
     goal: dc?.optimizeReceiptYear || yearsDiffer ? "sequence" : "simultaneous",
+  };
+}
+
+function slotDraft(
+  slot: HearingSlot | null,
+  sample: BenefitInput | undefined,
+): { income: string; service: string; age: string } {
+  if (slot) {
+    return {
+      income: String(slot.incomeYen),
+      service: String(slot.serviceYears),
+      age: String(slot.receiptAge),
+    };
+  }
+  return {
+    income: sample ? String(sample.incomeYen) : "",
+    service: sample?.serviceYears === undefined ? "" : String(sample.serviceYears),
+    age: String(DEFAULT_RECEIPT_AGE),
+  };
+}
+
+export function hearingDraft(input: SimulationInput): HearingDraft {
+  const answers = answersFromInput(input);
+  const company = slotDraft(answers.company, sampleCompany);
+  const dc = slotDraft(answers.dc, sampleDc);
+  return {
+    birthYear: String(answers.birthYear),
+    birthMonth: String(answers.birthMonth),
+    hasCompany: answers.company !== null,
+    companyIncomeYen: company.income,
+    companyServiceYears: company.service,
+    companyReceiptAge: company.age,
+    hasDc: answers.dc !== null,
+    dcIncomeYen: dc.income,
+    dcServiceYears: dc.service,
+    dcReceiptAge: dc.age,
+    hasExtra: answers.hasExtra,
+    goal: answers.goal,
   };
 }
 
@@ -179,51 +230,48 @@ export function inputFromAnswers(
   previous: SimulationInput = defaultInput,
 ): SimulationInput {
   const birth = { year: answers.birthYear, month: answers.birthMonth };
-  const companyYear = yearOfAge(birth, answers.companyReceiptAge);
-  const dcYear = yearOfAge(birth, answers.dcReceiptAge);
   const previousBenefits = previous.benefits;
   const prevCompany = firstOfKind(previousBenefits, "company");
   const prevDc = firstOfKind(previousBenefits, "dc");
-  const company = answers.hasCompany
+  const company = answers.company
     ? patchBenefit(
         prevCompany,
         {
           id: prevCompany?.id ?? "company",
           kind: "company",
-          incomeYen: answers.companyIncomeYen,
-          serviceYears: Math.max(1, answers.companyServiceYears),
-          receiptYear: companyYear,
+          incomeYen: answers.company.incomeYen,
+          serviceYears: Math.max(1, answers.company.serviceYears),
+          receiptYear: yearOfAge(birth, answers.company.receiptAge),
         },
-        keepsDetailedIntervals(prevCompany, answers.companyServiceYears),
+        keepsDetailedIntervals(prevCompany, answers.company.serviceYears),
       )
     : undefined;
-  const dc = answers.hasDc
+  const dc = answers.dc
     ? patchBenefit(
         prevDc,
         {
           id: prevDc?.id ?? "dc",
           kind: "dc",
-          incomeYen: answers.dcIncomeYen,
-          serviceYears: Math.max(1, answers.dcServiceYears),
-          receiptYear: dcYear,
+          incomeYen: answers.dc.incomeYen,
+          serviceYears: Math.max(1, answers.dc.serviceYears),
+          receiptYear: yearOfAge(birth, answers.dc.receiptAge),
           optimizeReceiptYear: answers.goal === "sequence",
         },
-        keepsDetailedIntervals(prevDc, answers.dcServiceYears),
+        keepsDetailedIntervals(prevDc, answers.dc.serviceYears),
       )
     : undefined;
 
   const kept: BenefitInput[] = [];
-  if (company) kept.push(company);
-  if (dc) kept.push(dc);
+  if (company && kindHasSlot(company.kind, answers)) kept.push(company);
+  if (dc && kindHasSlot(dc.kind, answers)) kept.push(dc);
   const primaryCount = kept.length;
-  const previousBirthYear = previous.birthYearMonth?.year;
+  const previousBirthYear = hearingBirth(previous).year;
   for (const benefit of previousBenefits) {
     if (isPrimary(benefit, prevCompany, prevDc)) continue;
     if (!answers.hasExtra) continue;
-    if (!answers.hasCompany && benefit.kind === "company") continue;
+    if (!kindHasSlot(benefit.kind, answers)) continue;
     if (kept.length >= MAX_BENEFITS) break;
     const receiptYear = alignedExtraReceiptYear(benefit, previousBirthYear, answers.birthYear);
-    if (receiptYear === null) continue;
     kept.push({ ...benefit, receiptYear });
   }
   const extraYear = unusedReceiptYear(kept, answers.birthYear);
@@ -368,7 +416,13 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
     if (conflict) nextErrors.dcReceiptAge = conflict;
   }
 
-  if (Object.keys(nextErrors).length > 0 || !birthY.ok || !birthM.ok || (draft.hasCompany && !company?.ok)) {
+  if (
+    Object.keys(nextErrors).length > 0 ||
+    !birthY.ok ||
+    !birthM.ok ||
+    (draft.hasCompany && !company?.ok) ||
+    (draft.hasDc && !dc?.ok)
+  ) {
     return { ok: false, errors: nextErrors };
   }
   return {
@@ -376,14 +430,22 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
     value: {
       birthYear: birthY.value,
       birthMonth: birthM.value,
-      hasCompany: draft.hasCompany,
-      companyIncomeYen: company?.ok ? company.income : 0,
-      companyServiceYears: company?.ok ? company.service : 1,
-      companyReceiptAge: companyAge ?? DEFAULT_RECEIPT_AGE,
-      hasDc: draft.hasDc,
-      dcIncomeYen: dc?.ok ? dc.income : 0,
-      dcServiceYears: dc?.ok ? dc.service : 1,
-      dcReceiptAge: dcAge ?? DEFAULT_RECEIPT_AGE,
+      company:
+        company?.ok === true
+          ? {
+              incomeYen: company.income,
+              serviceYears: company.service,
+              receiptAge: companyAge ?? company.age,
+            }
+          : null,
+      dc:
+        dc?.ok === true
+          ? {
+              incomeYen: dc.income,
+              serviceYears: dc.service,
+              receiptAge: dcAge ?? dc.age,
+            }
+          : null,
       hasExtra: draft.hasExtra,
       goal: draft.goal,
     },

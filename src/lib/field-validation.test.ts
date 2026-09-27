@@ -5,8 +5,9 @@ import {
   FIELD_RANGES,
   defaultReceiptYear,
   receiptAgeRange,
+  receiptYearAfterBirthChange,
 } from "./field-ranges";
-import { benefitKindOptions } from "./parse-input";
+import { benefitKindChoices, isDedicatedDcSlot } from "@/components/benefit-kind-options";
 import {
   intervalOrderError,
   parseCountedInt,
@@ -76,15 +77,57 @@ describe("receipt age", () => {
     expect(parseReceiptAge("3", 1977, { kind: "company" }).ok).toBe(false);
   });
 
-  it("keeps iDeCo off the third allowance and later ones", () => {
-    expect(benefitKindOptions(2, "other").map((option) => option.value)).toEqual([
+  it("keeps iDeCo on the dedicated slot and off extra rows", () => {
+    const company = {
+      id: "company",
+      kind: "company" as const,
+      incomeYen: 1,
+      serviceYears: 30,
+      receiptYear: 2025,
+    };
+    const dc = { id: "dc", kind: "dc" as const, incomeYen: 1, serviceYears: 20, receiptYear: 2025 };
+    const extra = { id: "extra", kind: "other" as const, incomeYen: 0, serviceYears: 10, receiptYear: 2025 };
+    const withCompany = [company, dc, extra];
+    expect(isDedicatedDcSlot(dc, withCompany)).toBe(true);
+    expect(isDedicatedDcSlot(company, withCompany)).toBe(false);
+    expect(isDedicatedDcSlot(extra, withCompany)).toBe(false);
+    expect(benefitKindChoices(true).map((option) => option.value)).toContain("dc");
+    expect(benefitKindChoices(false).map((option) => option.value)).toEqual([
       "company",
       "mutual_aid",
       "other",
     ]);
-    expect(benefitKindOptions(3, "mutual_aid").some((option) => option.value === "dc")).toBe(false);
-    expect(benefitKindOptions(1, "dc").some((option) => option.value === "dc")).toBe(true);
-    expect(benefitKindOptions(0, "company").map((option) => option.label)).toContain("会社退職金");
+    const noCompany = [dc, extra];
+    expect(isDedicatedDcSlot(extra, noCompany)).toBe(false);
+    expect(benefitKindChoices(isDedicatedDcSlot(extra, noCompany)).some((option) => option.value === "dc")).toBe(
+      false,
+    );
+    expect(benefitKindChoices(isDedicatedDcSlot(dc, noCompany)).some((option) => option.value === "dc")).toBe(true);
+  });
+
+  it("keeps a legal DC age when membership months, not service years, set the floor", () => {
+    const intervals = [{ start: { year: 2014, month: 1 }, end: { year: 2024, month: 12 } }];
+    const withMonths = {
+      kind: "dc" as const,
+      receiptYear: 2025,
+      serviceYears: 9,
+      intervals,
+    };
+    expect(receiptYearAfterBirthChange(withMonths, 1965, 1966)).toBe(2026);
+    expect(
+      receiptYearAfterBirthChange(
+        { kind: "dc", receiptYear: 2025, serviceYears: 9 },
+        1965,
+        1966,
+      ),
+    ).toBe(2027);
+    expect(
+      receiptYearAfterBirthChange(
+        { kind: "dc", receiptYear: 2199, serviceYears: 1 },
+        2139,
+        2140,
+      ),
+    ).toBe(2199);
   });
 
   it("hides DC ages under 60 and raises the floor when membership is short", () => {

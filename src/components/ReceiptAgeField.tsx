@@ -3,7 +3,7 @@
 import { Text } from "@mantine/core";
 import type { BenefitKind } from "@/engine";
 import { IntPickerField } from "./IntPickerField";
-import { DEFAULT_RECEIPT_AGE, FIELD_RANGES, RECEIPT_AGE_MIN, receiptAgeRange } from "@/lib/field-ranges";
+import { clampReceiptAge, DEFAULT_RECEIPT_AGE, FIELD_RANGES, RECEIPT_AGE_MIN, receiptAgeRange } from "@/lib/field-ranges";
 import { receiptYearFromAge } from "@/lib/field-validation";
 
 type Props = {
@@ -36,7 +36,7 @@ export function ReceiptAgeField({
     birthYear !== null && parsed !== null && parsed >= range.min && parsed <= range.max
       ? receiptYearFromAge(birthYear, parsed)
       : null;
-  const firstCandidate = Math.max(range.min, Math.min(range.max, DEFAULT_RECEIPT_AGE));
+  const firstCandidate = clampReceiptAge(range, DEFAULT_RECEIPT_AGE) ?? range.min;
 
   return (
     <div>

@@ -87,18 +87,6 @@ export const KIND_LABELS: Record<BenefitKind, string> = {
   other: "その他",
 };
 
-/** 手当1・2（0始まりで 2 未満）は iDeCo を残す。それ以降の追加分からは外す。 */
-const DEDICATED_BENEFIT_SLOTS = 2;
-
-export function benefitKindOptions(
-  index: number,
-  current: BenefitKind,
-): { value: BenefitKind; label: string }[] {
-  return (Object.keys(KIND_LABELS) as BenefitKind[])
-    .filter((kind) => kind !== "dc" || index < DEDICATED_BENEFIT_SLOTS || current === "dc")
-    .map((value) => ({ value, label: KIND_LABELS[value] }));
-}
-
 export const RULE_MODE_LABELS: Record<RuleMode, string> = {
   auto: "受取年で自動",
   pre_2026: "改正前固定（4年）",

@@ -6,7 +6,8 @@ import { ageInCalendarYear, totalMonths, yearOfAge, type BenefitInput, type Year
 import { IntInput } from "./IntInput";
 import { IntPickerField } from "./IntPickerField";
 import { ReceiptAgeField } from "./ReceiptAgeField";
-import { benefitKindOptions, isBenefitKind } from "@/lib/parse-input";
+import { isBenefitKind } from "@/lib/parse-input";
+import { benefitKindChoices, isDedicatedDcSlot } from "./benefit-kind-options";
 import { CONTRIBUTION_END_NOTE, contributionEndBounds, FIELD_RANGES } from "@/lib/field-ranges";
 import {
   intervalOrderError,
@@ -33,6 +34,7 @@ function parseYearField(raw: string, label: string) {
 export function BenefitEditor({
   index,
   benefit,
+  benefits,
   birth,
   onChange,
   onRemove,
@@ -42,6 +44,7 @@ export function BenefitEditor({
 }: {
   index: number;
   benefit: BenefitInput;
+  benefits: BenefitInput[];
   birth?: YearMonth;
   onChange: (patch: Partial<BenefitInput>) => void;
   onRemove: () => void;
@@ -197,7 +200,7 @@ export function BenefitEditor({
         <Group justify="space-between" wrap="wrap" gap="sm" align="flex-end">
           <Select
             label={`手当 ${n}`}
-            data={benefitKindOptions(index, benefit.kind)}
+            data={benefitKindChoices(isDedicatedDcSlot(benefit, benefits))}
             value={benefit.kind}
             onChange={(value) => {
               if (!value || !isBenefitKind(value)) return;
