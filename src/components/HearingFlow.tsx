@@ -105,7 +105,7 @@ export function HearingFlow({
   const isLast = nextHearingStep(step, flags) === "done";
   const calendarYear = new Date().getFullYear();
   const birthYears = birthYearBounds(calendarYear);
-  const birthYearParsed = parseBirthYear(draft.birthYear, calendarYear);
+  const birthYearParsed = parseBirthYear(draft.birthYear);
   const birthYear = birthYearParsed.ok ? birthYearParsed.value : null;
 
   function patch<K extends keyof typeof draft>(key: K, value: (typeof draft)[K]) {
@@ -223,6 +223,7 @@ export function HearingFlow({
               value={draft.birthYear}
               error={errors.birthYear}
               pickerCenter={calendarYear}
+              retainOutsideRange
               onChange={(birthYear) => patch("birthYear", birthYear)}
             />
             <IntPickerField

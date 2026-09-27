@@ -1,5 +1,5 @@
 import { reconstructSimpleInterval, type BenefitKind, type YearMonth } from "@/engine";
-import { birthYearBounds, contributionEndBounds, FIELD_RANGES, receiptAgeRange } from "./field-ranges";
+import { contributionEndBounds, FIELD_RANGES, receiptAgeRange } from "./field-ranges";
 
 export type ParseResult = { ok: true; value: number } | { ok: false; error: string };
 
@@ -26,8 +26,9 @@ export function parseCountedInt(
   return { ok: true, value };
 }
 
-export function parseBirthYear(raw: string, calendarYear = new Date().getFullYear()): ParseResult {
-  return parseCountedInt(raw, { label: "生年", ...birthYearBounds(calendarYear) });
+/** 保存済みの生年。ピッカーの年齢幅とは別で、今年が動いてもこの範囲は変えない。 */
+export function parseBirthYear(raw: string): ParseResult {
+  return parseCountedInt(raw, { label: "生年", ...FIELD_RANGES.birthYear });
 }
 
 export function parseMonth(raw: string, label = "月"): ParseResult {

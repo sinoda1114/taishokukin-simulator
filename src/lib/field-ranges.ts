@@ -25,7 +25,7 @@ export const FIELD_RANGES = {
   contributionEndAge: { min: 50, max: CONTRIBUTION_END_AGE_CAP },
 } as const;
 
-/** 選べる生年。今年より後は出さない。受取年の範囲とは別。 */
+/** 新しく選ぶ生年の選択肢。保存済みの生年の検証には使わない。 */
 export function birthYearBounds(calendarYear: number): { min: number; max: number } {
   return {
     min: calendarYear - BIRTH_YEAR_MAX_AGE,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { simulate } from "@/engine";
 import {
   birthYearBounds,
   birthYearReceiptError,
@@ -8,6 +9,8 @@ import {
   receiptAgeRange,
   receiptYearAfterBirthChange,
 } from "./field-ranges";
+import { defaultInput } from "./default-input";
+import { parseSimulationInput } from "./parse-input";
 import { pickerWindow } from "./picker-window";
 import { benefitKindChoices, isDedicatedDcSlot } from "@/components/benefit-kind-options";
 import {
@@ -45,17 +48,8 @@ describe("parseCountedInt", () => {
 });
 
 describe("birth year bounds", () => {
-  it("uses ages 18 through 110 for a fixed calendar year", () => {
+  it("offers ages 18 through 110 when choosing a new year", () => {
     expect(birthYearBounds(2026)).toEqual({ min: 1916, max: 2008 });
-    expect(parseBirthYear("1965", 2026)).toEqual({ ok: true, value: 1965 });
-    expect(parseBirthYear("1916", 2026)).toEqual({ ok: true, value: 1916 });
-    expect(parseBirthYear("2008", 2026)).toEqual({ ok: true, value: 2008 });
-    expect(parseBirthYear("1915", 2026).ok).toBe(false);
-    expect(parseBirthYear("2009", 2026).ok).toBe(false);
-    expect(parseBirthYear("2060", 2026).ok).toBe(false);
-  });
-
-  it("does not list 2060 when 1965 is selected in 2026", () => {
     const bounds = birthYearBounds(2026);
     const aroundBirth = pickerWindow(bounds.min, bounds.max, 1965);
     const aroundNow = pickerWindow(bounds.min, bounds.max, 2026);
@@ -64,6 +58,22 @@ describe("birth year bounds", () => {
     expect(aroundBirth.max).toBeLessThan(2060);
     expect(aroundNow.max).toBeLessThan(2060);
     expect(FIELD_RANGES.receiptYear).toEqual({ min: 1980, max: 2200 });
+  });
+
+  it("keeps a saved birth year after the picker minimum moves forward", () => {
+    const savedYear = birthYearBounds(2026).min;
+    expect(birthYearBounds(2027).min).toBe(savedYear + 1);
+    expect(parseBirthYear(String(savedYear))).toEqual({ ok: true, value: savedYear });
+    expect(birthYearReceiptError(savedYear)).toBeNull();
+    const belowPicker = birthYearBounds(2026).min - 1;
+    expect(parseBirthYear(String(belowPicker))).toEqual({ ok: true, value: belowPicker });
+    expect(parseBirthYear("2060")).toEqual({ ok: true, value: 2060 });
+    expect(parseBirthYear("1899").ok).toBe(false);
+    const input = {
+      ...defaultInput,
+      birthYearMonth: { year: savedYear, month: 4 },
+    };
+    expect(simulate(parseSimulationInput(input)).totalTaxYen).toEqual(expect.any(Number));
   });
 });
 

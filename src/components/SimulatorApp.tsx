@@ -73,7 +73,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
 
   const calendarYear = new Date().getFullYear();
   const birthYears = birthYearBounds(calendarYear);
-  const birthYearParsed = parseBirthYear(birthYearRaw, calendarYear);
+  const birthYearParsed = parseBirthYear(birthYearRaw);
   const birthMonthParsed = parseMonth(birthMonthRaw, "生月");
   const birthReceiptError = birthYearParsed.ok ? birthYearReceiptError(birthYearParsed.value) : null;
   const birthValid = birthYearParsed.ok && birthMonthParsed.ok && birthReceiptError === null;
@@ -132,7 +132,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
   );
 
   function commitBirth(yearRaw: string, monthRaw: string) {
-    const year = parseBirthYear(yearRaw, calendarYear);
+    const year = parseBirthYear(yearRaw);
     const month = parseMonth(monthRaw, "生月");
     if (!year.ok || !month.ok || birthYearReceiptError(year.value)) return;
     const nextBirth = { year: year.value, month: month.value };
@@ -250,6 +250,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 value={birthYearRaw}
                 error={birthYearParsed.ok ? (birthReceiptError ?? undefined) : birthYearParsed.error}
                 pickerCenter={calendarYear}
+                retainOutsideRange
                 onChange={(raw) => {
                   setBirthYearRaw(raw);
                   commitBirth(raw, birthMonthRaw);
