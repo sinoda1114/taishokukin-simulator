@@ -36,8 +36,11 @@ describe("buildConsultSummary", () => {
     const yearTax = formatYen(screen.result?.years[0]?.totalTaxYen ?? null);
     expect(formula.length).toBeGreaterThan(0);
     expect(summary).toContain("生年月: 1965年4月");
-    expect(summary).toContain(
-      "退職所得の申告書を提出する前提です。出すのは一時金の税額だけで、年金受取は含みません。試算であり、税務助言ではありません。",
+    expect(summary).toContain("前提と注意");
+    expect(summary.indexOf("前提と注意")).toBeLessThan(
+      summary.indexOf(
+        "退職所得の申告書を提出する前提です。出すのは一時金の税額だけで、年金受取は含みません。試算であり、税務助言ではありません。",
+      ),
     );
     expect(summary).toContain("改正前と改正後");
     expect(summary).toContain("改正前に固定");
