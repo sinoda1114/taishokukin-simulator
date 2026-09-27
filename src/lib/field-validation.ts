@@ -26,6 +26,7 @@ export function parseCountedInt(
   return { ok: true, value };
 }
 
+/** 保存済みの生年。ピッカーの年齢幅とは別で、今年が動いてもこの範囲は変えない。 */
 export function parseBirthYear(raw: string): ParseResult {
   return parseCountedInt(raw, { label: "生年", ...FIELD_RANGES.birthYear });
 }

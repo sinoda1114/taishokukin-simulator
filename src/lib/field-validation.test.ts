@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { simulate } from "@/engine";
 import {
+  birthYearBounds,
   birthYearReceiptError,
   DEFAULT_RECEIPT_AGE,
   FIELD_RANGES,
@@ -7,9 +9,13 @@ import {
   receiptAgeRange,
   receiptYearAfterBirthChange,
 } from "./field-ranges";
+import { defaultInput } from "./default-input";
+import { parseSimulationInput } from "./parse-input";
+import { pickerWindow } from "./picker-window";
 import { benefitKindChoices, isDedicatedDcSlot } from "@/components/benefit-kind-options";
 import {
   intervalOrderError,
+  parseBirthYear,
   parseCountedInt,
   parseReceiptAge,
   receiptYearFromAge,
@@ -38,6 +44,36 @@ describe("parseCountedInt", () => {
       ok: true,
       value: 20_000_000,
     });
+  });
+});
+
+describe("birth year bounds", () => {
+  it("offers ages 18 through 110 when choosing a new year", () => {
+    expect(birthYearBounds(2026)).toEqual({ min: 1916, max: 2008 });
+    const bounds = birthYearBounds(2026);
+    const aroundBirth = pickerWindow(bounds.min, bounds.max, 1965);
+    const aroundNow = pickerWindow(bounds.min, bounds.max, 2026);
+    expect(aroundBirth.max).toBeLessThanOrEqual(bounds.max);
+    expect(aroundNow.max).toBe(bounds.max);
+    expect(aroundBirth.max).toBeLessThan(2060);
+    expect(aroundNow.max).toBeLessThan(2060);
+    expect(FIELD_RANGES.receiptYear).toEqual({ min: 1980, max: 2200 });
+  });
+
+  it("keeps a saved birth year after the picker minimum moves forward", () => {
+    const savedYear = birthYearBounds(2026).min;
+    expect(birthYearBounds(2027).min).toBe(savedYear + 1);
+    expect(parseBirthYear(String(savedYear))).toEqual({ ok: true, value: savedYear });
+    expect(birthYearReceiptError(savedYear)).toBeNull();
+    const belowPicker = birthYearBounds(2026).min - 1;
+    expect(parseBirthYear(String(belowPicker))).toEqual({ ok: true, value: belowPicker });
+    expect(parseBirthYear("2060")).toEqual({ ok: true, value: 2060 });
+    expect(parseBirthYear("1899").ok).toBe(false);
+    const input = {
+      ...defaultInput,
+      birthYearMonth: { year: savedYear, month: 4 },
+    };
+    expect(simulate(parseSimulationInput(input)).totalTaxYen).toEqual(expect.any(Number));
   });
 });
 

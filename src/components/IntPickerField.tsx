@@ -16,6 +16,8 @@ type Props = {
   optionSuffix?: string;
   pickerCenter?: number;
   windowAlign?: "center" | "start";
+  /** 範囲外の現在値は表示したままにする。新しい選択肢の幅は変えない。 */
+  retainOutsideRange?: boolean;
 };
 
 function optionLabel(value: number, suffix?: string): string {
@@ -37,13 +39,15 @@ export function IntPickerField({
   optionSuffix,
   pickerCenter,
   windowAlign = "center",
+  retainOutsideRange = false,
 }: Props) {
   const [opened, setOpened] = useState(false);
   const [query, setQuery] = useState("");
   const pickedRef = useRef(false);
   const trimmed = value.trim();
-  const selected =
-    /^\d+$/.test(trimmed) && Number(trimmed) >= min && Number(trimmed) <= max ? Number(trimmed) : null;
+  const numeric = /^\d+$/.test(trimmed) && Number.isSafeInteger(Number(trimmed)) ? Number(trimmed) : null;
+  const inRange = numeric !== null && numeric >= min && numeric <= max;
+  const selected = numeric !== null && (retainOutsideRange || inRange) ? numeric : null;
   const selectedLabel = selected === null ? null : optionLabel(selected, optionSuffix);
   const typedDigits = digitsFromPickerSearch(query, selectedLabel);
 

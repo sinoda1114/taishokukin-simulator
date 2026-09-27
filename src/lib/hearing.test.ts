@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultInput } from "./default-input";
+import { birthYearBounds } from "./field-ranges";
 import {
   answersFromInput,
   hearingGoalChange,
@@ -414,6 +415,14 @@ describe("parseDraft", () => {
     expect(tooYoung.errors.dcReceiptAge).toBeTruthy();
     const allowed = parseDraft({ ...draft, dcReceiptAge: "62" }, previous);
     expect(allowed.ok).toBe(true);
+  });
+
+  it("keeps a stored birth year the picker no longer offers", () => {
+    const saved = 1920;
+    expect(birthYearBounds(2030).min).toBe(saved);
+    expect(birthYearBounds(2031).min).toBeGreaterThan(saved);
+    const parsed = parseDraft({ ...base, birthYear: String(saved) });
+    expect(parsed.ok).toBe(true);
   });
 
   it("rejects a birth year that cannot reach age 60 inside the receipt years", () => {

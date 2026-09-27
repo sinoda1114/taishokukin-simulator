@@ -248,8 +248,8 @@ test("375px year picker stays in the viewport", async ({ page }) => {
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(376);
-  await picker.fill("2010");
-  const far = page.getByRole("option", { name: "2010年" });
+  await picker.fill("2000");
+  const far = page.getByRole("option", { name: "2000年" });
   await expect(far).toBeVisible();
   const farBox = await far.boundingBox();
   expect(farBox).not.toBeNull();
@@ -262,14 +262,14 @@ test("typing into a filled year picker jumps to that year", async ({ page }) => 
   const picker = page.getByRole("textbox", { name: "生年" });
   await expect(picker).toHaveValue("1965年");
   await picker.click();
-  await picker.pressSequentially("2010");
-  const far = page.getByRole("option", { name: "2010年" });
+  await picker.pressSequentially("2000");
+  const far = page.getByRole("option", { name: "2000年" });
   await expect(far).toBeVisible();
   const farBox = await far.boundingBox();
   expect(farBox).not.toBeNull();
   expect(farBox!.x + farBox!.width).toBeLessThanOrEqual(376);
   await picker.press("Enter");
-  await expect(picker).toHaveValue("2010年");
+  await expect(picker).toHaveValue("2000年");
 });
 
 test("choosing 11月 keeps 11, not the typed 1", async ({ page }) => {
@@ -298,10 +298,10 @@ test("typed year commits when the next step is opened", async ({ page }) => {
   await page.goto("/");
   const picker = page.getByRole("textbox", { name: "生年" });
   await picker.click();
-  await picker.pressSequentially("2015");
+  await picker.pressSequentially("2000");
   await page.getByRole("button", { name: "次へ" }).click();
   await page.getByRole("button", { name: "戻る" }).click();
-  await expect(page.getByRole("textbox", { name: "生年" })).toHaveValue("2015年");
+  await expect(page.getByRole("textbox", { name: "生年" })).toHaveValue("2000年");
 });
 
 test("company age picker opens at 60 and hides ages under 60", async ({ page }) => {

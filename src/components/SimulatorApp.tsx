@@ -25,6 +25,7 @@ import {
 import { isRuleMode, RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
 import { defaultInput } from "@/lib/default-input";
 import {
+  birthYearBounds,
   birthYearReceiptError,
   defaultReceiptYear,
   FIELD_RANGES,
@@ -70,6 +71,8 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
   const [benefitOk, setBenefitOk] = useState<Record<string, boolean>>({});
   const [consultOpen, setConsultOpen] = useState(false);
 
+  const calendarYear = new Date().getFullYear();
+  const birthYears = birthYearBounds(calendarYear);
   const birthYearParsed = parseBirthYear(birthYearRaw);
   const birthMonthParsed = parseMonth(birthMonthRaw, "生月");
   const birthReceiptError = birthYearParsed.ok ? birthYearReceiptError(birthYearParsed.value) : null;
@@ -241,12 +244,13 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
             <Group grow preventGrowOverflow={false} wrap="wrap">
               <IntPickerField
                 label="生年"
-                min={FIELD_RANGES.birthYear.min}
-                max={FIELD_RANGES.birthYear.max}
+                min={birthYears.min}
+                max={birthYears.max}
                 optionSuffix="年"
                 value={birthYearRaw}
                 error={birthYearParsed.ok ? (birthReceiptError ?? undefined) : birthYearParsed.error}
-                pickerCenter={new Date().getFullYear()}
+                pickerCenter={calendarYear}
+                retainOutsideRange
                 onChange={(raw) => {
                   setBirthYearRaw(raw);
                   commitBirth(raw, birthMonthRaw);

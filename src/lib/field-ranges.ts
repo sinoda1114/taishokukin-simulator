@@ -11,7 +11,12 @@ export const RECEIPT_AGE_MIN = 60;
 export const DEFAULT_RECEIPT_AGE = RECEIPT_AGE_MIN;
 export const CONTRIBUTION_END_AGE_CAP = 65;
 
+/** 生年として選べる年齢。受取年齢の下限とは別。 */
+const BIRTH_YEAR_MIN_AGE = 18;
+const BIRTH_YEAR_MAX_AGE = 110;
+
 export const FIELD_RANGES = {
+  /** 保存値と勤続区間の暦年。生年ピッカーは birthYearBounds を使う。 */
   birthYear: { min: 1900, max: 2200 },
   month: { min: 1, max: 12 },
   serviceYears: { min: 1, max: 80 },
@@ -19,6 +24,14 @@ export const FIELD_RANGES = {
   incomeYen: { min: 0, max: 10_000_000_000 },
   contributionEndAge: { min: 50, max: CONTRIBUTION_END_AGE_CAP },
 } as const;
+
+/** 新しく選ぶ生年の選択肢。保存済みの生年の検証には使わない。 */
+export function birthYearBounds(calendarYear: number): { min: number; max: number } {
+  return {
+    min: calendarYear - BIRTH_YEAR_MAX_AGE,
+    max: calendarYear - BIRTH_YEAR_MIN_AGE,
+  };
+}
 
 export const CONTRIBUTION_END_NOTE =
   "拠出終了は受取年齢以前です。選べる上限は65歳です。2026年12月の70歳未満への拡大は、この試算の選択肢には入れていません。";
