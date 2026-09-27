@@ -58,6 +58,7 @@ export type ResultView = {
   showAmendment: boolean;
   taxNotice: string | null;
   disclaimer: string;
+  notesTitle: string;
   yearHeaders: string[];
   yearRows: YearRowView[];
   amendmentTitle: string;
@@ -93,6 +94,7 @@ const POST_FIXED_LABEL = "改正後に固定";
 const SHORT_TENURE_TAX_NOTICE = "勤続5年以下の手当があるため、税額は出していません。";
 const DISCLAIMER =
   "退職所得の申告書を提出する前提です。出すのは一時金の税額だけで、年金受取は含みません。試算であり、税務助言ではありません。";
+const NOTES_TITLE = "前提と注意";
 const AMENDMENT_TITLE = "改正前と改正後";
 const PATTERN_TITLE = "同時 / 退職金先 / iDeCo先";
 const PATTERN_LEAD =
@@ -321,6 +323,7 @@ export function buildResultView(args: {
     showAmendment,
     taxNotice,
     disclaimer: DISCLAIMER,
+    notesTitle: NOTES_TITLE,
     yearHeaders: [...YEAR_HEADERS],
     yearRows,
     amendmentTitle: AMENDMENT_TITLE,
@@ -341,6 +344,7 @@ export function buildResultView(args: {
     patternLead,
     screenLines: [
       ...(taxNotice ? [taxNotice] : []),
+      NOTES_TITLE,
       DISCLAIMER,
       ...(recommended
         ? [`${recommended.title}: ${recommended.caption}`, recommended.taxLine, recommended.netLine]

@@ -50,6 +50,7 @@ export function ResultPanel({
     showAmendment,
     taxNotice,
     disclaimer,
+    notesTitle,
     yearHeaders,
     yearRows,
     amendmentTitle,
@@ -133,7 +134,10 @@ export function ResultPanel({
             {simultaneousLine}
           </Text>
         ) : null}
-        <Text size="sm" mt="sm" lh={1.6}>
+        <Title order={3} mt="md" mb={4}>
+          {notesTitle}
+        </Title>
+        <Text size="sm" lh={1.6}>
           {disclaimer}
         </Text>
         <Stack gap={4} mt="sm">
