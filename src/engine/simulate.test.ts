@@ -344,6 +344,38 @@ describe("short tenure and F2 / search", () => {
     expect(result.hits.length).toBeLessThanOrEqual(16);
   });
 
+  it("keeps a one-year candidate when other axes are pinned to the input year", () => {
+    const ruleset = { ...defaultRuleset, dcReceiptAgeMax: 62 };
+    const long = (id: string): BenefitInput => ({
+      id,
+      kind: "dc",
+      incomeYen: 5_000_000,
+      serviceYears: 20,
+      receiptYear: 2027,
+      optimizeReceiptYear: true,
+    });
+    const single: BenefitInput = {
+      id: "single",
+      kind: "dc",
+      incomeYen: 5_000_000,
+      serviceYears: 6,
+      receiptYear: 2025,
+      optimizeReceiptYear: true,
+    };
+    const result = searchReceiptYears(
+      input([long("a"), long("b"), long("c"), long("d"), long("e"), long("f"), single]),
+      ruleset,
+    );
+    expect(result.combinationCount).toBe(3 ** 6);
+    expect(result.truncated).toBe(true);
+    expect(result.variedBenefitIds).toEqual(["a"]);
+    expect(result.hits.length).toBeGreaterThan(0);
+    expect(result.hits.every((hit) => hit.receiptYears.single === 2027)).toBe(true);
+    expect(result.hits.every((hit) => hit.receiptYears.b === 2027 && hit.receiptYears.f === 2027)).toBe(
+      true,
+    );
+  });
+
   it("does not tax a DC year before the floor of contribution cut off at that year", () => {
     const dc = {
       id: "dc",

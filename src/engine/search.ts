@@ -56,30 +56,17 @@ function planReceiptYears(
   truncated: boolean;
 } {
   const combinationCount = productCount(fullLists);
-  const variableIndexes = fullLists.flatMap((years, index) => (years.length > 1 ? [index] : []));
-  const variedBenefitIds = variableIndexes.flatMap((index) => {
-    const id = benefits[index]?.id;
-    return id === undefined ? [] : [id];
+  const truncated = combinationCount > SEARCH_COMBINATION_CAP;
+  const firstMulti = fullLists.findIndex((years) => years.length > 1);
+  const lists = fullLists.map((years, index) => {
+    if (!truncated || years.length <= 1 || index === firstMulti) return years;
+    return [benefits[index].receiptYear];
   });
-  const firstIndex = variableIndexes[0];
-  if (firstIndex === undefined || combinationCount <= SEARCH_COMBINATION_CAP) {
-    return {
-      lists: fullLists,
-      variedBenefitIds,
-      combinationCount,
-      truncated: false,
-    };
+  const variedBenefitIds: string[] = [];
+  for (let index = 0; index < lists.length; index += 1) {
+    if (lists[index].length > 1) variedBenefitIds.push(benefits[index].id);
   }
-  const pinned = benefits[firstIndex]?.receiptYear;
-  const years = fullLists[firstIndex] ?? (pinned === undefined ? [] : [pinned]);
-  const variedYears =
-    years.length > SEARCH_COMBINATION_CAP ? years.slice(0, SEARCH_COMBINATION_CAP) : years;
-  return {
-    lists: benefits.map((benefit, index) => (index === firstIndex ? variedYears : [benefit.receiptYear])),
-    variedBenefitIds: variedBenefitIds.slice(0, 1),
-    combinationCount,
-    truncated: true,
-  };
+  return { lists, variedBenefitIds, combinationCount, truncated };
 }
 
 function totalTaxOrInf(hit: SearchHit): number {
@@ -100,7 +87,7 @@ export function searchReceiptYears(
   const hits: SearchHit[] = cartesian(plan.lists).map((years) => {
     const receiptYears: Record<string, number> = {};
     const benefits = input.benefits.map((benefit, index) => {
-      const year = years[index] ?? benefit.receiptYear;
+      const year = years[index];
       receiptYears[benefit.id] = year;
       return benefitAtReceiptYear(benefit, year, input.birthYearMonth);
     });
