@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultInput } from "./default-input";
+import { birthYearBounds } from "./field-ranges";
 import {
   answersFromInput,
   hearingGoalChange,
@@ -416,11 +417,12 @@ describe("parseDraft", () => {
     expect(allowed.ok).toBe(true);
   });
 
-  it("rejects a birth year that cannot reach age 60 inside the receipt years", () => {
-    const parsed = parseDraft({ ...base, birthYear: "2141" });
+  it("rejects a birth year after the latest sensible year", () => {
+    const tooLate = String(birthYearBounds(new Date().getFullYear()).max + 1);
+    const parsed = parseDraft({ ...base, birthYear: tooLate });
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
-    expect(parsed.errors.birthYear).toContain("60");
+    expect(parsed.errors.birthYear).toContain("生年");
     expect(
       hearingStepForErrors({ hasCompany: true, hasDc: true, goal: "sequence" }, parsed.errors),
     ).toBe("birth");

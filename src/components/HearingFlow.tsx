@@ -6,7 +6,7 @@ import { totalMonths, type SimulationInput } from "@/engine";
 import { IntInput } from "./IntInput";
 import { IntPickerField } from "./IntPickerField";
 import { ReceiptAgeField } from "./ReceiptAgeField";
-import { FIELD_RANGES } from "@/lib/field-ranges";
+import { birthYearBounds, FIELD_RANGES } from "@/lib/field-ranges";
 import { toInt } from "@/lib/ui-numbers";
 import {
   parseBirthYear,
@@ -103,7 +103,9 @@ export function HearingFlow({
   const index = Math.max(0, steps.indexOf(step));
   const copy = STEP_COPY[step];
   const isLast = nextHearingStep(step, flags) === "done";
-  const birthYearParsed = parseBirthYear(draft.birthYear);
+  const calendarYear = new Date().getFullYear();
+  const birthYears = birthYearBounds(calendarYear);
+  const birthYearParsed = parseBirthYear(draft.birthYear, calendarYear);
   const birthYear = birthYearParsed.ok ? birthYearParsed.value : null;
 
   function patch<K extends keyof typeof draft>(key: K, value: (typeof draft)[K]) {
@@ -215,12 +217,12 @@ export function HearingFlow({
           <Group grow preventGrowOverflow={false} wrap="wrap">
             <IntPickerField
               label="生年"
-              min={FIELD_RANGES.birthYear.min}
-              max={FIELD_RANGES.birthYear.max}
+              min={birthYears.min}
+              max={birthYears.max}
               optionSuffix="年"
               value={draft.birthYear}
               error={errors.birthYear}
-              pickerCenter={new Date().getFullYear()}
+              pickerCenter={calendarYear}
               onChange={(birthYear) => patch("birthYear", birthYear)}
             />
             <IntPickerField
