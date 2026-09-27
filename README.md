@@ -25,3 +25,5 @@ npm run test:e2e
 ```
 
 ローカルの保存先は `data/local.db`（libSQL）。本番（Vercel）はリモートの `TURSO_DATABASE_URL`（`libsql://...`）と `TURSO_AUTH_TOKEN` が必須です。スキーマ適用は起動時と `npm run db:migrate` です。認証は `AUTH_PROVIDER=none` のままです。
+
+相談はサーバーの環境変数 `GEMINI_API_KEY` だけを使います。`NEXT_PUBLIC_` にはしません。未設定のときはチャットに「相談の準備ができていません」と出します。会話は保存しません。

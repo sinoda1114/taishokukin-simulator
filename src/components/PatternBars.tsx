@@ -1,7 +1,6 @@
 "use client";
 
 import { Text } from "@mantine/core";
-import { formatYen } from "@/lib/parse-input";
 
 export function PatternBars({
   rows,
@@ -11,8 +10,9 @@ export function PatternBars({
     label: string;
     years: string;
     tax: number | null;
+    taxText: string;
     isBest: boolean;
-    omitted?: string;
+    omittedLine?: string | null;
   }>;
 }) {
   const max = Math.max(...rows.map((row) => row.tax ?? 0), 1);
@@ -29,15 +29,15 @@ export function PatternBars({
                 {row.isBest ? " · 3案の中で最小" : ""}
               </Text>
               <Text className="yen" size="sm" fw={600}>
-                {row.omitted ? "—" : formatYen(row.tax)}
+                {row.taxText}
               </Text>
             </div>
             <Text size="sm" c="var(--ink-muted)">
               {row.years}
             </Text>
-            {row.omitted ? (
+            {row.omittedLine ? (
               <Text size="sm" c="var(--ink-muted)">
-                — {row.omitted}
+                {row.omittedLine}
               </Text>
             ) : null}
             <div className="bar-track">
