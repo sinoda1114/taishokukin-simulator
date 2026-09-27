@@ -329,6 +329,21 @@ describe("short tenure and F2 / search", () => {
     );
   });
 
+  it("does not expand every benefit when optimized DCs share an id", () => {
+    const dc = {
+      id: "a",
+      kind: "dc" as const,
+      incomeYen: 5_000_000,
+      serviceYears: 20,
+      receiptYear: 2030,
+      optimizeReceiptYear: true,
+    };
+    const result = searchReceiptYears(input([dc, { ...dc }, { ...dc }]));
+    expect(result.truncated).toBe(true);
+    expect(result.variedBenefitIds).toEqual(["a"]);
+    expect(result.hits.length).toBeLessThanOrEqual(16);
+  });
+
   it("does not tax a DC year before the floor of contribution cut off at that year", () => {
     const dc = {
       id: "dc",

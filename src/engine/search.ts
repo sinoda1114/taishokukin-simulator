@@ -56,26 +56,30 @@ function planReceiptYears(
   truncated: boolean;
 } {
   const combinationCount = productCount(fullLists);
-  const variable = benefits
-    .map((benefit, index) => ({ id: benefit.id, years: fullLists[index] ?? [] }))
-    .filter((entry) => entry.years.length > 1);
+  const variableIndexes = fullLists.flatMap((years, index) => (years.length > 1 ? [index] : []));
   if (combinationCount <= SEARCH_COMBINATION_CAP) {
     return {
       lists: fullLists,
-      variedBenefitIds: variable.map((entry) => entry.id),
+      variedBenefitIds: variableIndexes.flatMap((index) => {
+        const id = benefits[index]?.id;
+        return id === undefined ? [] : [id];
+      }),
       combinationCount,
       truncated: false,
     };
   }
-  const first = variable[0];
+  const firstIndex = variableIndexes[0];
+  if (firstIndex === undefined) {
+    throw new Error("受取年の探索範囲が上限を超えています");
+  }
+  const variedId = benefits[firstIndex]?.id;
   return {
-    lists: first
-      ? benefits.map((benefit, index) => {
-          if (benefit.id === first.id) return fullLists[index] ?? [benefit.receiptYear];
-          return [benefit.receiptYear];
-        })
-      : fullLists,
-    variedBenefitIds: first ? [first.id] : [],
+    lists: benefits.map((benefit, index) => {
+      if (index !== firstIndex) return [benefit.receiptYear];
+      const years = fullLists[index] ?? [benefit.receiptYear];
+      return years.length > SEARCH_COMBINATION_CAP ? years.slice(0, SEARCH_COMBINATION_CAP) : years;
+    }),
+    variedBenefitIds: variedId === undefined ? [] : [variedId],
     combinationCount,
     truncated: true,
   };
@@ -95,6 +99,9 @@ export function searchReceiptYears(
 ): SearchResult {
   const fullLists = input.benefits.map((benefit) => candidateYears(benefit, input, ruleset));
   const plan = planReceiptYears(input.benefits, fullLists);
+  if (productCount(plan.lists) > SEARCH_COMBINATION_CAP) {
+    throw new Error("受取年の探索範囲が上限を超えています");
+  }
 
   const hits: SearchHit[] = cartesian(plan.lists).map((years) => {
     const receiptYears: Record<string, number> = {};
