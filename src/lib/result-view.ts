@@ -276,8 +276,9 @@ export function buildResultView(args: {
       ? postAmendment.totalTaxYen - preAmendment.totalTaxYen
       : null;
   const blocked = result.warnings.find((warning) => warning.code === "receipt_ineligible");
+  const noBenefits = result.warnings.some((warning) => warning.code === "no_benefits");
   const showTax = result.totalTaxYen !== null;
-  const taxNotice = blocked ? blocked.message : showTax ? null : SHORT_TENURE_TAX_NOTICE;
+  const taxNotice = blocked ? blocked.message : showTax || noBenefits ? null : SHORT_TENURE_TAX_NOTICE;
   const yearRows = buildYearRows(result.years);
   const ruleModeLabel = RULE_MODE_LABELS[ruleMode];
   const lead = amendmentLead(ruleModeLabel);

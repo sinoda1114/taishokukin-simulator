@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  birthYearReceiptError,
+  DEFAULT_RECEIPT_AGE,
+  FIELD_RANGES,
+  defaultReceiptYear,
+  receiptAgeRange,
+} from "./field-ranges";
+import { benefitKindOptions } from "./parse-input";
+import {
   intervalOrderError,
   parseCountedInt,
   parseReceiptAge,
@@ -49,11 +57,34 @@ describe("receipt age", () => {
     expect(parseReceiptAge("10", 1965).ok).toBe(false);
   });
 
-  it("keeps company retirement under 60 and rejects age 3", () => {
-    expect(parseReceiptAge("45", 1977, { kind: "company" })).toEqual({ ok: true, value: 45 });
-    expect(parseReceiptAge("20", 1977, { kind: "company" })).toEqual({ ok: true, value: 20 });
+  it("starts at 60 and rejects anything younger, including other benefits", () => {
+    expect(DEFAULT_RECEIPT_AGE).toBe(60);
+    expect(defaultReceiptYear(1965)).toBe(2025);
+    expect(defaultReceiptYear(1900)).toBe(1980);
+    expect(defaultReceiptYear(2141)).toBeNull();
+    expect(birthYearReceiptError(1965)).toBeNull();
+    expect(birthYearReceiptError(2141)).toContain("60");
+    expect(FIELD_RANGES.birthYear).toEqual({ min: 1900, max: 2200 });
+    expect(receiptAgeRange(1977, "company").min).toBe(60);
+    expect(receiptAgeRange(1977, "other").min).toBe(60);
+    expect(receiptAgeRange(1977, "mutual_aid").min).toBe(60);
+    expect(parseReceiptAge("60", 1977, { kind: "company" })).toEqual({ ok: true, value: 60 });
+    expect(parseReceiptAge("60", 1977, { kind: "other" })).toEqual({ ok: true, value: 60 });
+    expect(parseReceiptAge("59", 1977, { kind: "company" }).ok).toBe(false);
+    expect(parseReceiptAge("40", 1977, { kind: "other" }).ok).toBe(false);
+    expect(parseReceiptAge("3", 1977, { kind: "other" }).ok).toBe(false);
     expect(parseReceiptAge("3", 1977, { kind: "company" }).ok).toBe(false);
-    expect(parseReceiptAge("19", 1977, { kind: "company" }).ok).toBe(false);
+  });
+
+  it("keeps iDeCo off the third allowance and later ones", () => {
+    expect(benefitKindOptions(2, "other").map((option) => option.value)).toEqual([
+      "company",
+      "mutual_aid",
+      "other",
+    ]);
+    expect(benefitKindOptions(3, "mutual_aid").some((option) => option.value === "dc")).toBe(false);
+    expect(benefitKindOptions(1, "dc").some((option) => option.value === "dc")).toBe(true);
+    expect(benefitKindOptions(0, "company").map((option) => option.label)).toContain("会社退職金");
   });
 
   it("hides DC ages under 60 and raises the floor when membership is short", () => {

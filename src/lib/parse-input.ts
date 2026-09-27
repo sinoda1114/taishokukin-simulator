@@ -36,7 +36,7 @@ export const simulationInputSchema = z.object({
   schemaVersion: z.literal(1),
   birthYearMonth: yearMonthSchema.optional(),
   ruleMode: ruleModeSchema,
-  benefits: z.array(benefitSchema).min(1).max(6),
+  benefits: z.array(benefitSchema).min(0).max(6),
 });
 
 export function parseSimulationInput(raw: unknown): SimulationInput {
@@ -86,6 +86,18 @@ export const KIND_LABELS: Record<BenefitKind, string> = {
   mutual_aid: "小規模企業共済",
   other: "その他",
 };
+
+/** 手当1・2（0始まりで 2 未満）は iDeCo を残す。それ以降の追加分からは外す。 */
+const DEDICATED_BENEFIT_SLOTS = 2;
+
+export function benefitKindOptions(
+  index: number,
+  current: BenefitKind,
+): { value: BenefitKind; label: string }[] {
+  return (Object.keys(KIND_LABELS) as BenefitKind[])
+    .filter((kind) => kind !== "dc" || index < DEDICATED_BENEFIT_SLOTS || current === "dc")
+    .map((value) => ({ value, label: KIND_LABELS[value] }));
+}
 
 export const RULE_MODE_LABELS: Record<RuleMode, string> = {
   auto: "受取年で自動",

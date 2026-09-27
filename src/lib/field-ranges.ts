@@ -1,12 +1,12 @@
 import {
   dcMinimumReceiptAgeFromMonths,
   defaultRuleset,
-  EARLIEST_RETIREMENT_AGE,
   type BenefitKind,
 } from "@/engine";
 
-export { EARLIEST_RETIREMENT_AGE };
-export const DEFAULT_RECEIPT_AGE = 60;
+/** 画面で選べる受取年齢の下限。初期値も同じ。税の計算式とは別。 */
+export const RECEIPT_AGE_MIN = 60;
+export const DEFAULT_RECEIPT_AGE = RECEIPT_AGE_MIN;
 export const CONTRIBUTION_END_AGE_CAP = 65;
 
 export const FIELD_RANGES = {
@@ -25,7 +25,7 @@ export function generalReceiptAgeRange(birthYear: number): { min: number; max: n
   const minFromYear = FIELD_RANGES.receiptYear.min - birthYear;
   const maxFromYear = FIELD_RANGES.receiptYear.max - birthYear;
   return {
-    min: Math.max(EARLIEST_RETIREMENT_AGE, minFromYear),
+    min: Math.max(RECEIPT_AGE_MIN, minFromYear),
     max: maxFromYear,
   };
 }
@@ -44,6 +44,18 @@ export function receiptAgeRange(
     min: Math.max(general.min, minAge),
     max: Math.min(general.max, defaultRuleset.dcReceiptAgeMax),
   };
+}
+
+export function birthYearReceiptError(birthYear: number): string | null {
+  const range = generalReceiptAgeRange(birthYear);
+  if (range.min <= range.max) return null;
+  return `この生年では受取年齢${RECEIPT_AGE_MIN}歳の受取年が${FIELD_RANGES.receiptYear.max}年を超えます`;
+}
+
+export function defaultReceiptYear(birthYear: number): number | null {
+  const range = generalReceiptAgeRange(birthYear);
+  if (range.min > range.max) return null;
+  return birthYear + Math.min(range.max, Math.max(range.min, DEFAULT_RECEIPT_AGE));
 }
 
 export function contributionEndBounds(receiptAge: number | null): { min: number; max: number } {

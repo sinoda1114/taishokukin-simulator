@@ -26,7 +26,7 @@ import {
 } from "@/engine";
 import { isRuleMode, RULE_MODE_LABELS, parseSimulationInput } from "@/lib/parse-input";
 import { defaultInput } from "@/lib/default-input";
-import { FIELD_RANGES } from "@/lib/field-ranges";
+import { birthYearReceiptError, defaultReceiptYear, FIELD_RANGES } from "@/lib/field-ranges";
 import { parseBirthYear, parseMonth } from "@/lib/field-validation";
 import { buildConsultSummary } from "@/lib/consult-summary";
 import { HearingFlow } from "./HearingFlow";
@@ -68,7 +68,8 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
 
   const birthYearParsed = parseBirthYear(birthYearRaw);
   const birthMonthParsed = parseMonth(birthMonthRaw, "生月");
-  const birthValid = birthYearParsed.ok && birthMonthParsed.ok;
+  const birthReceiptError = birthYearParsed.ok ? birthYearReceiptError(birthYearParsed.value) : null;
+  const birthValid = birthYearParsed.ok && birthMonthParsed.ok && birthReceiptError === null;
   const benefitsValid = input.benefits.every((benefit) => benefitOk[benefit.id] !== false);
 
   const computed = useMemo(() => {
@@ -126,7 +127,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
   function commitBirth(yearRaw: string, monthRaw: string) {
     const year = parseBirthYear(yearRaw);
     const month = parseMonth(monthRaw, "生月");
-    if (!year.ok || !month.ok) return;
+    if (!year.ok || !month.ok || birthYearReceiptError(year.value)) return;
     const nextBirth = { year: year.value, month: month.value };
     setInput((prev) => {
       const previousBirth = prev.birthYearMonth;
@@ -152,6 +153,10 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
 
   function addBenefit() {
     if (input.benefits.length >= 6) return;
+    const receiptYear = input.birthYearMonth
+      ? defaultReceiptYear(input.birthYearMonth.year)
+      : (input.benefits[0]?.receiptYear ?? 2025);
+    if (receiptYear === null) return;
     setInput((prev) => ({
       ...prev,
       benefits: [
@@ -161,7 +166,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
           kind: "other",
           incomeYen: 0,
           serviceYears: 20,
-          receiptYear: prev.benefits[0]?.receiptYear ?? 2030,
+          receiptYear,
         },
       ],
     }));
@@ -233,7 +238,7 @@ export function SimulatorApp({ initialInput, shareToken }: Props) {
                 max={FIELD_RANGES.birthYear.max}
                 optionSuffix="年"
                 value={birthYearRaw}
-                error={birthYearParsed.ok ? undefined : birthYearParsed.error}
+                error={birthYearParsed.ok ? (birthReceiptError ?? undefined) : birthYearParsed.error}
                 pickerCenter={new Date().getFullYear()}
                 onChange={(raw) => {
                   setBirthYearRaw(raw);

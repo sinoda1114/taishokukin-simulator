@@ -6,7 +6,12 @@ import {
   type BenefitInput,
   type SimulationInput,
 } from "@/engine";
-import { DEFAULT_RECEIPT_AGE, EARLIEST_RETIREMENT_AGE } from "./field-ranges";
+import {
+  birthYearReceiptError,
+  DEFAULT_RECEIPT_AGE,
+  generalReceiptAgeRange,
+  receiptAgeRange,
+} from "./field-ranges";
 import {
   parseBirthYear,
   parseIncomeYen,
@@ -23,6 +28,7 @@ export type HearingGoal = "simultaneous" | "sequence";
 export type HearingAnswers = {
   birthYear: number;
   birthMonth: number;
+  hasCompany: boolean;
   companyIncomeYen: number;
   companyServiceYears: number;
   companyReceiptAge: number;
@@ -37,6 +43,7 @@ export type HearingAnswers = {
 export type HearingDraft = {
   birthYear: string;
   birthMonth: string;
+  hasCompany: boolean;
   companyIncomeYen: string;
   companyServiceYears: string;
   companyReceiptAge: string;
@@ -48,29 +55,36 @@ export type HearingDraft = {
   goal: HearingGoal;
 };
 
-export type HearingStepId = "birth" | "company" | "hasDc" | "dc" | "hasExtra" | "goal";
+export type HearingStepId = "birth" | "hasCompany" | "company" | "hasDc" | "dc" | "hasExtra" | "goal";
 
-const STEP_ORDER: HearingStepId[] = ["birth", "company", "hasDc", "dc", "hasExtra", "goal"];
+export type HearingFlags = { hasCompany: boolean; hasDc: boolean };
+
+const STEP_ORDER: HearingStepId[] = ["birth", "hasCompany", "company", "hasDc", "dc", "hasExtra", "goal"];
 const MAX_BENEFITS = 6;
 const sampleCompany = defaultInput.benefits[0];
 const sampleDc = defaultInput.benefits[1];
 
-export function visibleHearingSteps(hasDc: boolean): HearingStepId[] {
-  return STEP_ORDER.filter((step) => step !== "dc" || hasDc);
+export function visibleHearingSteps(flags: HearingFlags): HearingStepId[] {
+  return STEP_ORDER.filter((step) => {
+    if (step === "company") return flags.hasCompany;
+    if (step === "dc") return flags.hasDc;
+    if (step === "goal") return flags.hasCompany && flags.hasDc;
+    return true;
+  });
 }
 
 export function nextHearingStep(
   current: HearingStepId,
-  hasDc: boolean,
+  flags: HearingFlags,
 ): HearingStepId | "done" {
-  const steps = visibleHearingSteps(hasDc);
+  const steps = visibleHearingSteps(flags);
   const index = steps.indexOf(current);
   if (index < 0 || index >= steps.length - 1) return "done";
   return steps[index + 1] ?? "done";
 }
 
-export function prevHearingStep(current: HearingStepId, hasDc: boolean): HearingStepId | null {
-  const steps = visibleHearingSteps(hasDc);
+export function prevHearingStep(current: HearingStepId, flags: HearingFlags): HearingStepId | null {
+  const steps = visibleHearingSteps(flags);
   const index = steps.indexOf(current);
   if (index <= 0) return null;
   return steps[index - 1] ?? null;
@@ -114,13 +128,28 @@ function patchBenefit(
   return { ...rest, ...patch, id: benefit.id };
 }
 
-function unusedReceiptYear(benefits: BenefitInput[], birthYear: number): number {
+function unusedReceiptYear(benefits: BenefitInput[], birthYear: number): number | null {
+  const range = generalReceiptAgeRange(birthYear);
+  if (range.min > range.max) return null;
   const used = new Set(benefits.map((benefit) => benefit.receiptYear));
-  const first = Math.max(1980, birthYear + EARLIEST_RETIREMENT_AGE);
-  for (let year = first; year <= 2200; year += 1) {
+  const first = birthYear + range.min;
+  const last = birthYear + range.max;
+  for (let year = first; year <= last; year += 1) {
     if (!used.has(year)) return year;
   }
-  return 2200;
+  return null;
+}
+
+function alignedExtraReceiptYear(
+  benefit: BenefitInput,
+  previousBirthYear: number | undefined,
+  nextBirthYear: number,
+): number | null {
+  const range = receiptAgeRange(nextBirthYear, benefit.kind, benefit.serviceYears);
+  if (range.min > range.max) return null;
+  const age =
+    previousBirthYear === undefined ? DEFAULT_RECEIPT_AGE : benefit.receiptYear - previousBirthYear;
+  return nextBirthYear + Math.min(range.max, Math.max(range.min, age));
 }
 
 export function answersFromInput(input: SimulationInput): HearingAnswers {
@@ -132,6 +161,7 @@ export function answersFromInput(input: SimulationInput): HearingAnswers {
   return {
     birthYear: birth.year,
     birthMonth: birth.month,
+    hasCompany: Boolean(company),
     companyIncomeYen: company?.incomeYen ?? sampleCompany?.incomeYen ?? 0,
     companyServiceYears: shownServiceYears(company, sampleCompany?.serviceYears ?? 1),
     companyReceiptAge: company ? ageInCalendarYear(birth, company.receiptYear) : DEFAULT_RECEIPT_AGE,
@@ -154,17 +184,19 @@ export function inputFromAnswers(
   const previousBenefits = previous.benefits;
   const prevCompany = firstOfKind(previousBenefits, "company");
   const prevDc = firstOfKind(previousBenefits, "dc");
-  const company = patchBenefit(
-    prevCompany,
-    {
-      id: prevCompany?.id ?? "company",
-      kind: "company",
-      incomeYen: answers.companyIncomeYen,
-      serviceYears: Math.max(1, answers.companyServiceYears),
-      receiptYear: companyYear,
-    },
-    keepsDetailedIntervals(prevCompany, answers.companyServiceYears),
-  );
+  const company = answers.hasCompany
+    ? patchBenefit(
+        prevCompany,
+        {
+          id: prevCompany?.id ?? "company",
+          kind: "company",
+          incomeYen: answers.companyIncomeYen,
+          serviceYears: Math.max(1, answers.companyServiceYears),
+          receiptYear: companyYear,
+        },
+        keepsDetailedIntervals(prevCompany, answers.companyServiceYears),
+      )
+    : undefined;
   const dc = answers.hasDc
     ? patchBenefit(
         prevDc,
@@ -180,21 +212,28 @@ export function inputFromAnswers(
       )
     : undefined;
 
-  const kept: BenefitInput[] = [company];
+  const kept: BenefitInput[] = [];
+  if (company) kept.push(company);
   if (dc) kept.push(dc);
+  const primaryCount = kept.length;
+  const previousBirthYear = previous.birthYearMonth?.year;
   for (const benefit of previousBenefits) {
     if (isPrimary(benefit, prevCompany, prevDc)) continue;
     if (!answers.hasExtra) continue;
+    if (!answers.hasCompany && benefit.kind === "company") continue;
     if (kept.length >= MAX_BENEFITS) break;
-    kept.push({ ...benefit });
+    const receiptYear = alignedExtraReceiptYear(benefit, previousBirthYear, answers.birthYear);
+    if (receiptYear === null) continue;
+    kept.push({ ...benefit, receiptYear });
   }
-  if (answers.hasExtra && kept.length === (dc ? 2 : 1) && kept.length < MAX_BENEFITS) {
+  const extraYear = unusedReceiptYear(kept, answers.birthYear);
+  if (answers.hasExtra && kept.length === primaryCount && extraYear !== null && kept.length < MAX_BENEFITS) {
     kept.push({
       id: "extra",
       kind: "other",
       incomeYen: 0,
       serviceYears: 20,
-      receiptYear: unusedReceiptYear(kept, answers.birthYear),
+      receiptYear: extraYear,
     });
   }
 
@@ -283,21 +322,27 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
   const birthY = parseBirthYear(draft.birthYear);
   const birthM = parseMonth(draft.birthMonth, "生月");
   if (!birthY.ok) nextErrors.birthYear = birthY.error;
+  if (birthY.ok) {
+    const receiptError = birthYearReceiptError(birthY.value);
+    if (receiptError) nextErrors.birthYear = receiptError;
+  }
   if (!birthM.ok) nextErrors.birthMonth = birthM.error;
   const prevCompany = firstOfKind(previousBenefits, "company");
   const prevDc = firstOfKind(previousBenefits, "dc");
-  const company = parseTriplet(
-    {
-      income: draft.companyIncomeYen,
-      service: draft.companyServiceYears,
-      age: draft.companyReceiptAge,
-    },
-    { income: "companyIncomeYen", service: "companyServiceYears", age: "companyReceiptAge" },
-    birthY.ok ? birthY.value : null,
-    "勤続年数",
-    "company",
-  );
-  if (!company.ok) Object.assign(nextErrors, company.errors);
+  const company = draft.hasCompany
+    ? parseTriplet(
+        {
+          income: draft.companyIncomeYen,
+          service: draft.companyServiceYears,
+          age: draft.companyReceiptAge,
+        },
+        { income: "companyIncomeYen", service: "companyServiceYears", age: "companyReceiptAge" },
+        birthY.ok ? birthY.value : null,
+        "勤続年数",
+        "company",
+      )
+    : null;
+  if (company && !company.ok) Object.assign(nextErrors, company.errors);
   const dcMonths = keptMembershipMonths(prevDc, draft.dcServiceYears);
   const dc = draft.hasDc
     ? parseTriplet(
@@ -311,10 +356,10 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
     : null;
   if (dc && !dc.ok) Object.assign(nextErrors, dc.errors);
 
-  const shared = Boolean(draft.hasDc && draft.goal === "simultaneous" && dc?.ok);
-  const companyAge = shared && dc?.ok ? dc.age : company.ok ? company.age : null;
+  const shared = Boolean(company?.ok && draft.hasDc && draft.goal === "simultaneous" && dc?.ok);
+  const companyAge = shared && dc?.ok ? dc.age : company?.ok ? company.age : null;
   const dcAge = dc?.ok ? dc.age : null;
-  if (company.ok && companyAge !== null && birthY.ok && !keepsDetailedIntervals(prevCompany, company.service)) {
+  if (company?.ok && companyAge !== null && birthY.ok && !keepsDetailedIntervals(prevCompany, company.service)) {
     const conflict = tenureConflict(company.service, companyAge, birthY.value, birthM.ok ? birthM.value : null);
     if (conflict) nextErrors.companyReceiptAge = conflict;
   }
@@ -323,7 +368,7 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
     if (conflict) nextErrors.dcReceiptAge = conflict;
   }
 
-  if (Object.keys(nextErrors).length > 0 || !birthY.ok || !birthM.ok || !company.ok) {
+  if (Object.keys(nextErrors).length > 0 || !birthY.ok || !birthM.ok || (draft.hasCompany && !company?.ok)) {
     return { ok: false, errors: nextErrors };
   }
   return {
@@ -331,13 +376,14 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
     value: {
       birthYear: birthY.value,
       birthMonth: birthM.value,
-      companyIncomeYen: company.income,
-      companyServiceYears: company.service,
-      companyReceiptAge: companyAge ?? company.age,
+      hasCompany: draft.hasCompany,
+      companyIncomeYen: company?.ok ? company.income : 0,
+      companyServiceYears: company?.ok ? company.service : 1,
+      companyReceiptAge: companyAge ?? DEFAULT_RECEIPT_AGE,
       hasDc: draft.hasDc,
       dcIncomeYen: dc?.ok ? dc.income : 0,
       dcServiceYears: dc?.ok ? dc.service : 1,
-      dcReceiptAge: dcAge ?? company.age,
+      dcReceiptAge: dcAge ?? DEFAULT_RECEIPT_AGE,
       hasExtra: draft.hasExtra,
       goal: draft.goal,
     },
@@ -346,11 +392,13 @@ export function parseDraft(draft: HearingDraft, previousBenefits: BenefitInput[]
 
 export function hearingStepErrorKeys(
   step: HearingStepId,
-  draft: Pick<HearingDraft, "hasDc" | "goal">,
+  draft: Pick<HearingDraft, "hasCompany" | "hasDc" | "goal">,
 ): string[] {
   switch (step) {
     case "birth":
       return ["birthYear", "birthMonth"];
+    case "hasCompany":
+      return [];
     case "company":
       return ["companyIncomeYen", "companyServiceYears", "companyReceiptAge"];
     case "dc":
@@ -359,7 +407,8 @@ export function hearingStepErrorKeys(
     case "hasExtra":
       return [];
     case "goal":
-      return draft.hasDc && draft.goal === "simultaneous" ? ["companyReceiptAge", "dcReceiptAge"] : [];
+      if (!(draft.hasDc && draft.goal === "simultaneous")) return [];
+      return draft.hasCompany ? ["companyReceiptAge", "dcReceiptAge"] : ["dcReceiptAge"];
     default: {
       const unreachable: never = step;
       return unreachable;
@@ -368,7 +417,7 @@ export function hearingStepErrorKeys(
 }
 
 export function hearingStepForErrors(
-  draft: Pick<HearingDraft, "hasDc" | "goal">,
+  draft: Pick<HearingDraft, "hasCompany" | "hasDc" | "goal">,
   errors: Record<string, string>,
 ): HearingStepId {
   const ageError = Boolean(errors.companyReceiptAge || errors.dcReceiptAge);
@@ -382,7 +431,12 @@ export function hearingStepForErrors(
   );
   if (draft.hasDc && draft.goal === "simultaneous" && ageError && !earlier) return "goal";
   if (errors.birthYear || errors.birthMonth) return "birth";
-  if (errors.companyIncomeYen || errors.companyServiceYears || errors.companyReceiptAge) return "company";
+  if (
+    draft.hasCompany &&
+    (errors.companyIncomeYen || errors.companyServiceYears || errors.companyReceiptAge)
+  ) {
+    return "company";
+  }
   if (errors.dcIncomeYen || errors.dcServiceYears || errors.dcReceiptAge) return "dc";
   return "goal";
 }

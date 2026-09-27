@@ -15,21 +15,41 @@ import { simulate } from "@/engine";
 
 describe("hearing steps", () => {
   it("skips DC details when there is no DC", () => {
-    expect(visibleHearingSteps(false)).toEqual(["birth", "company", "hasDc", "hasExtra", "goal"]);
-    expect(nextHearingStep("hasDc", false)).toBe("hasExtra");
-    expect(prevHearingStep("hasExtra", false)).toBe("hasDc");
+    const flags = { hasCompany: true, hasDc: false };
+    expect(visibleHearingSteps(flags)).toEqual([
+      "birth",
+      "hasCompany",
+      "company",
+      "hasDc",
+      "hasExtra",
+    ]);
+    expect(nextHearingStep("hasDc", flags)).toBe("hasExtra");
+    expect(nextHearingStep("hasExtra", flags)).toBe("done");
+    expect(prevHearingStep("hasExtra", flags)).toBe("hasDc");
   });
 
   it("asks DC details when there is a DC", () => {
-    expect(nextHearingStep("hasDc", true)).toBe("dc");
-    expect(nextHearingStep("goal", true)).toBe("done");
-    expect(prevHearingStep("birth", true)).toBeNull();
+    const flags = { hasCompany: true, hasDc: true };
+    expect(nextHearingStep("hasDc", flags)).toBe("dc");
+    expect(nextHearingStep("goal", flags)).toBe("done");
+    expect(prevHearingStep("birth", flags)).toBeNull();
+    expect(nextHearingStep("birth", flags)).toBe("hasCompany");
+    expect(nextHearingStep("hasCompany", flags)).toBe("company");
+  });
+
+  it("skips company amounts when there is no company retirement", () => {
+    const flags = { hasCompany: false, hasDc: true };
+    expect(visibleHearingSteps(flags)).toEqual(["birth", "hasCompany", "hasDc", "dc", "hasExtra"]);
+    expect(nextHearingStep("hasExtra", flags)).toBe("done");
+    expect(nextHearingStep("hasCompany", flags)).toBe("hasDc");
+    expect(prevHearingStep("hasDc", flags)).toBe("hasCompany");
   });
 });
 
 describe("hearing mapping", () => {
   it("round-trips the sample input used for skip", () => {
     const answers = answersFromInput(defaultInput);
+    expect(answers.hasCompany).toBe(true);
     expect(answers.companyReceiptAge).toBe(60);
     expect(answers.dcReceiptAge).toBe(60);
     expect(answers.hasExtra).toBe(false);
@@ -43,6 +63,7 @@ describe("hearing mapping", () => {
     const input = inputFromAnswers({
       birthYear: 1965,
       birthMonth: 4,
+      hasCompany: true,
       companyIncomeYen: 20_000_000,
       companyServiceYears: 30,
       companyReceiptAge: 65,
@@ -61,9 +82,10 @@ describe("hearing mapping", () => {
     const input = inputFromAnswers({
       birthYear: 1965,
       birthMonth: 4,
+      hasCompany: true,
       companyIncomeYen: 20_000_000,
       companyServiceYears: 30,
-      companyReceiptAge: 55,
+      companyReceiptAge: 61,
       hasDc: true,
       dcIncomeYen: 10_000_000,
       dcServiceYears: 20,
@@ -71,7 +93,7 @@ describe("hearing mapping", () => {
       hasExtra: false,
       goal: "simultaneous",
     });
-    expect(input.benefits.find((b) => b.kind === "company")?.receiptYear).toBe(2020);
+    expect(input.benefits.find((b) => b.kind === "company")?.receiptYear).toBe(2026);
     expect(input.benefits.find((b) => b.kind === "dc")?.receiptYear).toBe(2027);
   });
 
@@ -79,6 +101,7 @@ describe("hearing mapping", () => {
     const input = inputFromAnswers({
       birthYear: 1965,
       birthMonth: 4,
+      hasCompany: true,
       companyIncomeYen: 20_000_000,
       companyServiceYears: 30,
       companyReceiptAge: 62,
@@ -152,6 +175,75 @@ describe("hearing mapping", () => {
     expect(input.benefits[2]).toMatchObject({ id: "kept", incomeYen: 3_000_000 });
   });
 
+  it("drops extra company retirement when the user says there is none", () => {
+    const previous = {
+      ...defaultInput,
+      benefits: [
+        ...defaultInput.benefits,
+        {
+          id: "second-company",
+          kind: "company" as const,
+          incomeYen: 5_000_000,
+          serviceYears: 10,
+          receiptYear: 2030,
+        },
+        {
+          id: "kept-other",
+          kind: "other" as const,
+          incomeYen: 1_000_000,
+          serviceYears: 5,
+          receiptYear: 2031,
+        },
+      ],
+    };
+    const next = inputFromAnswers(
+      { ...answersFromInput(previous), hasCompany: false, hasExtra: true },
+      previous,
+    );
+    expect(next.benefits.map((benefit) => benefit.kind)).toEqual(["dc", "other"]);
+    expect(next.benefits.find((benefit) => benefit.id === "kept-other")?.incomeYen).toBe(1_000_000);
+    expect(
+      simulate(parseSimulationInput(next)).years.every((year) => !year.kinds.includes("company")),
+    ).toBe(true);
+  });
+
+  it("keeps an extra allowance at age 60 when the birth year moves", () => {
+    const previous = {
+      ...defaultInput,
+      benefits: [
+        ...defaultInput.benefits,
+        {
+          id: "kept",
+          kind: "other" as const,
+          incomeYen: 1_000_000,
+          serviceYears: 10,
+          receiptYear: 2025,
+        },
+      ],
+    };
+    const next = inputFromAnswers({ ...answersFromInput(previous), birthYear: 1966 }, previous);
+    expect(next.birthYearMonth).toEqual({ year: 1966, month: 4 });
+    expect(next.benefits.find((benefit) => benefit.id === "kept")?.receiptYear).toBe(2026);
+  });
+
+  it("raises an extra allowance that was stored under 60", () => {
+    const previous = {
+      ...defaultInput,
+      benefits: [
+        ...defaultInput.benefits,
+        {
+          id: "kept",
+          kind: "other" as const,
+          incomeYen: 1_000_000,
+          serviceYears: 10,
+          receiptYear: 2005,
+        },
+      ],
+    };
+    const next = inputFromAnswers(answersFromInput(previous), previous);
+    expect(next.benefits.find((benefit) => benefit.id === "kept")?.receiptYear).toBe(2025);
+  });
+
   it("keeps a different DC year when the user did not ask for simultaneous", () => {
     const previous = {
       ...defaultInput,
@@ -205,6 +297,7 @@ describe("parseDraft", () => {
   const base = {
     birthYear: "1965",
     birthMonth: "4",
+    hasCompany: true,
     companyIncomeYen: "20000000",
     companyServiceYears: "30",
     companyReceiptAge: "60",
@@ -217,7 +310,7 @@ describe("parseDraft", () => {
   };
 
   it("applies the one simultaneous age to both benefits", () => {
-    const parsed = parseDraft({ ...base, companyReceiptAge: "55" });
+    const parsed = parseDraft({ ...base, companyReceiptAge: "61" });
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.value.companyReceiptAge).toBe(62);
@@ -237,7 +330,9 @@ describe("parseDraft", () => {
     expect(parsed.ok).toBe(false);
     if (parsed.ok) return;
     expect(parsed.errors.companyReceiptAge).toContain("生年月より前");
-    expect(hearingStepForErrors({ hasDc: true, goal: "simultaneous" }, parsed.errors)).toBe("goal");
+    expect(hearingStepForErrors({ hasCompany: true, hasDc: true, goal: "simultaneous" }, parsed.errors)).toBe(
+      "goal",
+    );
   });
 
   it("uses interval months, not the ceiling year, for the DC age floor", () => {
@@ -263,12 +358,48 @@ describe("parseDraft", () => {
     const allowed = parseDraft({ ...draft, dcReceiptAge: "62" }, previous);
     expect(allowed.ok).toBe(true);
   });
+
+  it("rejects a birth year that cannot reach age 60 inside the receipt years", () => {
+    const parsed = parseDraft({ ...base, birthYear: "2141" });
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.errors.birthYear).toContain("60");
+    expect(
+      hearingStepForErrors({ hasCompany: true, hasDc: true, goal: "sequence" }, parsed.errors),
+    ).toBe("birth");
+  });
+
+  it("rejects a company receipt age under 60", () => {
+    const parsed = parseDraft({ ...base, goal: "sequence", companyReceiptAge: "40" });
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.errors.companyReceiptAge).toContain("60");
+  });
+
+  it("does not ask for company amounts when there is no company retirement", () => {
+    const parsed = parseDraft({
+      ...base,
+      hasCompany: false,
+      companyIncomeYen: "",
+      companyServiceYears: "",
+      companyReceiptAge: "3",
+    });
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.hasCompany).toBe(false);
+    const next = inputFromAnswers(parsed.value);
+    expect(next.benefits.map((benefit) => benefit.kind)).toEqual(["dc"]);
+    expect(simulate(parseSimulationInput(next)).years.every((year) => !year.kinds.includes("company"))).toBe(
+      true,
+    );
+  });
 });
 
 describe("hearing goal", () => {
   const draft = {
     birthYear: "1965",
     birthMonth: "4",
+    hasCompany: true,
     companyIncomeYen: "20000000",
     companyServiceYears: "30",
     companyReceiptAge: "65",

@@ -432,8 +432,8 @@ export function simulate(
       schemaVersion: 1,
       rulesetVersion: ruleset.version,
       years: [],
-      totalTaxYen: 0,
-      totalNetYen: 0,
+      totalTaxYen: null,
+      totalNetYen: null,
       warnings: [{ code: "no_benefits", message: "退職手当等がありません" }],
     };
   }
