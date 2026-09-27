@@ -244,7 +244,7 @@ export function buildResultView(args: {
   const bestCard = cards?.find((card) => card.isBest && card.tax !== null);
   const recommended = search?.best
     ? moneyLines({
-        title: "推奨案（探索全体の最小）",
+        title: search.truncated ? "推奨案（固定後の最小）" : "推奨案（探索全体の最小）",
         caption: receiptCaption(search.best.receiptYears, benefits),
         tax: search.best.result.totalTaxYen,
         net: search.best.result.totalNetYen,
@@ -289,7 +289,7 @@ export function buildResultView(args: {
   const postFixedNet = postAmendment.totalNetYen;
   const receiptYears = [...new Set(benefits.map((benefit) => benefit.receiptYear))].sort((a, b) => a - b);
   const searchBestLine = search?.best
-    ? `探索全体の最小: ${receiptCaption(search.best.receiptYears, benefits)}`
+    ? `${search.truncated ? "固定後の最小" : "探索全体の最小"}: ${receiptCaption(search.best.receiptYears, benefits)}`
     : null;
   const searchBestTax = search?.best?.result.totalTaxYen ?? null;
   const searchBestText = searchBestLine ? `${searchBestLine} ／ ${formatYen(searchBestTax)}` : null;
@@ -361,7 +361,11 @@ export function buildResultView(args: {
     periods: benefits.map((benefit) => ({ id: benefit.id, text: periodLine(benefit, birth) })),
     searchNote: search
       ? search.truncated
-        ? `組合せが ${search.combinationCount} あり、${search.hits.length} 件で打ち切りました。`
+        ? `組合せが ${search.combinationCount} あるため、${
+            search.variedBenefitIds.length > 0
+              ? `${search.variedBenefitIds.join("、")} だけを動かし、他は入力の受取年に固定しました。`
+              : "探索範囲を絞りました。"
+          }税額最小は全探索ではありません。`
         : `${search.combinationCount} 通り。税額が小さい順、同額なら受取が早い順です。`
       : null,
     searchBestLine,
