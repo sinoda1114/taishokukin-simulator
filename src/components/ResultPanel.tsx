@@ -47,6 +47,7 @@ export function ResultPanel({
     nextBest,
     simultaneousLine,
     showTax,
+    showAmendment,
     taxNotice,
     disclaimer,
     yearHeaders,
@@ -158,6 +159,7 @@ export function ResultPanel({
         </Text>
       </div>
 
+      {showAmendment ? (
       <div>
         <Title order={2}>{amendmentTitle}</Title>
         <Text size="sm" c="dimmed" mt={4} mb="sm">
@@ -186,10 +188,13 @@ export function ResultPanel({
         <Text size="sm" mt="sm" className="yen">
           {amendmentDeltaLine}
         </Text>
-        <Text size="sm" mt={4} c="var(--ink-muted)">
-          受取年で自動にすると、{regimeLine}。
-        </Text>
+        {regimeLine ? (
+          <Text size="sm" mt={4} c="var(--ink-muted)">
+            受取年で自動にすると、{regimeLine}。
+          </Text>
+        ) : null}
       </div>
+      ) : null}
 
       {cards && patternTitle && patternLead ? (
         <div>

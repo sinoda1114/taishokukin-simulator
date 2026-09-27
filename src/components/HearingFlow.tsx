@@ -15,11 +15,11 @@ import {
   receiptYearFromAge,
 } from "@/lib/field-validation";
 import {
-  answersFromInput,
   detailedServiceYears,
   hearingGoalChange,
   hearingStepErrorKeys,
   hearingStepForErrors,
+  hearingDraft,
   inputFromAnswers,
   keepsDetailedIntervals,
   nextHearingStep,
@@ -35,9 +35,13 @@ const STEP_COPY: Record<HearingStepId, { title: string; lede: string }> = {
     title: "生年月を選んでください",
     lede: "受取年は、その年齢の誕生日を迎える暦年です。iDeCo の 60歳も同じです。",
   },
+  hasCompany: {
+    title: "会社の退職金はありますか",
+    lede: "ない場合は、金額・勤続年数・受取年齢は聞きません。結果にも会社の退職金は出しません。",
+  },
   company: {
     title: "会社の退職金について教えてください",
-    lede: "見込み受取額を入れ、勤続年数と受取年齢を選んでください。受取年は生年月から出します。",
+    lede: "見込み受取額を入れ、勤続年数と受取年齢を選んでください。受取年は生年月から出します。受取年齢は60歳からです。",
   },
   hasDc: {
     title: "iDeCo か企業型 DC の一時金はありますか",
@@ -87,27 +91,18 @@ export function HearingFlow({
   onSkip: () => void;
   onComplete: (input: SimulationInput) => void;
 }) {
-  const seed = useMemo(() => answersFromInput(initial), [initial]);
-  const [draft, setDraft] = useState<HearingDraft>({
-    birthYear: String(seed.birthYear),
-    birthMonth: String(seed.birthMonth),
-    companyIncomeYen: String(seed.companyIncomeYen),
-    companyServiceYears: String(seed.companyServiceYears),
-    companyReceiptAge: String(seed.companyReceiptAge),
-    hasDc: seed.hasDc,
-    dcIncomeYen: String(seed.dcIncomeYen),
-    dcServiceYears: String(seed.dcServiceYears),
-    dcReceiptAge: String(seed.dcReceiptAge),
-    hasExtra: seed.hasExtra,
-    goal: seed.goal,
-  });
+  const [draft, setDraft] = useState<HearingDraft>(() => hearingDraft(initial));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [step, setStep] = useState<HearingStepId>("birth");
   const [companyAgeBeforeShared, setCompanyAgeBeforeShared] = useState<string | null>(null);
-  const steps = useMemo(() => visibleHearingSteps(draft.hasDc), [draft.hasDc]);
+  const flags = useMemo(
+    () => ({ hasCompany: draft.hasCompany, hasDc: draft.hasDc }),
+    [draft.hasCompany, draft.hasDc],
+  );
+  const steps = useMemo(() => visibleHearingSteps(flags), [flags]);
   const index = Math.max(0, steps.indexOf(step));
   const copy = STEP_COPY[step];
-  const isLast = nextHearingStep(step, draft.hasDc) === "done";
+  const isLast = nextHearingStep(step, flags) === "done";
   const birthYearParsed = parseBirthYear(draft.birthYear);
   const birthYear = birthYearParsed.ok ? birthYearParsed.value : null;
 
@@ -153,7 +148,7 @@ export function HearingFlow({
   }
 
   function goNext() {
-    const next = nextHearingStep(step, draft.hasDc);
+    const next = nextHearingStep(step, flags);
     if (next === "done") {
       const parsed = parseDraft(draft, initial.benefits);
       if (!parsed.ok) {
@@ -182,7 +177,7 @@ export function HearingFlow({
   }
 
   function goBack() {
-    const prev = prevHearingStep(step, draft.hasDc);
+    const prev = prevHearingStep(step, flags);
     if (prev) setStep(prev);
   }
 
@@ -238,6 +233,17 @@ export function HearingFlow({
               onChange={(birthMonth) => patch("birthMonth", birthMonth)}
             />
           </Group>
+        ) : null}
+
+        {step === "hasCompany" ? (
+          <div className="choice-row" role="group" aria-label="会社の退職金">
+            <Choice selected={draft.hasCompany} onClick={() => patch("hasCompany", true)}>
+              ある
+            </Choice>
+            <Choice selected={!draft.hasCompany} onClick={() => patch("hasCompany", false)}>
+              ない
+            </Choice>
+          </div>
         ) : null}
 
         {step === "company" ? (
@@ -348,7 +354,7 @@ export function HearingFlow({
                 先後の比較
               </Choice>
             </div>
-            {draft.goal === "simultaneous" && draft.hasDc ? (
+            {draft.goal === "simultaneous" && draft.hasDc && draft.hasCompany ? (
               <Stack gap="xs">
                 <Text size="sm" c="var(--ink-muted)" lh={1.6}>
                   ここで選んだ1つの年齢を、会社と DC の両方の受取年齢にします。
@@ -383,7 +389,7 @@ export function HearingFlow({
                 ) : null}
               </Stack>
             ) : null}
-            {draft.goal === "sequence" && draft.hasDc ? (
+            {draft.goal === "sequence" && draft.hasDc && draft.hasCompany ? (
               <Text size="sm" c="var(--ink-muted)">
                 会社は{draft.companyReceiptAge || "—"}歳、DC は{draft.dcReceiptAge || "—"}歳のまま比べます。DC の年齢は変えません。
               </Text>
@@ -392,7 +398,7 @@ export function HearingFlow({
         ) : null}
 
         <Group className="hit-lg" grow preventGrowOverflow={false} wrap="wrap">
-          <Button type="button" variant="default" onClick={goBack} disabled={!prevHearingStep(step, draft.hasDc)}>
+          <Button type="button" variant="default" onClick={goBack} disabled={!prevHearingStep(step, flags)}>
             戻る
           </Button>
           <Button type="button" onClick={goNext}>

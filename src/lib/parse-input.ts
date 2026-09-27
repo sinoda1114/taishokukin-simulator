@@ -36,7 +36,7 @@ export const simulationInputSchema = z.object({
   schemaVersion: z.literal(1),
   birthYearMonth: yearMonthSchema.optional(),
   ruleMode: ruleModeSchema,
-  benefits: z.array(benefitSchema).min(1).max(6),
+  benefits: z.array(benefitSchema).min(0).max(6),
 });
 
 export function parseSimulationInput(raw: unknown): SimulationInput {

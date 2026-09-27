@@ -3,7 +3,7 @@
 import { Text } from "@mantine/core";
 import type { BenefitKind } from "@/engine";
 import { IntPickerField } from "./IntPickerField";
-import { DEFAULT_RECEIPT_AGE, FIELD_RANGES, receiptAgeRange } from "@/lib/field-ranges";
+import { clampReceiptAge, DEFAULT_RECEIPT_AGE, FIELD_RANGES, RECEIPT_AGE_MIN, receiptAgeRange } from "@/lib/field-ranges";
 import { receiptYearFromAge } from "@/lib/field-validation";
 
 type Props = {
@@ -29,14 +29,14 @@ export function ReceiptAgeField({
 }: Props) {
   const range =
     birthYear === null
-      ? { min: kind === "dc" ? 60 : 20, max: FIELD_RANGES.receiptYear.max - FIELD_RANGES.birthYear.min }
+      ? { min: RECEIPT_AGE_MIN, max: FIELD_RANGES.receiptYear.max - FIELD_RANGES.birthYear.min }
       : receiptAgeRange(birthYear, kind, serviceYears, membershipMonths);
   const parsed = /^\d+$/.test(value.trim()) ? Number(value.trim()) : null;
   const year =
     birthYear !== null && parsed !== null && parsed >= range.min && parsed <= range.max
       ? receiptYearFromAge(birthYear, parsed)
       : null;
-  const firstCandidate = Math.max(range.min, Math.min(range.max, DEFAULT_RECEIPT_AGE));
+  const firstCandidate = clampReceiptAge(range, DEFAULT_RECEIPT_AGE) ?? range.min;
 
   return (
     <div>
@@ -61,17 +61,11 @@ export function ReceiptAgeField({
           受取年は {year}年です。その年に{parsed}歳の誕生日を迎える暦年です。
         </Text>
       ) : null}
-      {kind === "dc" ? (
-        <Text size="sm" mt={6} c="var(--ink-muted)">
-          {range.min > 60
-            ? `加入年数が短いため、${range.min}歳から${range.max}歳です。60歳未満は出せません。`
-            : `60歳から${range.max}歳です。60歳未満は出せません。`}
-        </Text>
-      ) : (
-        <Text size="sm" mt={6} c="var(--ink-muted)">
-          下限は20歳です。開いたときの先頭は60歳です。60歳より前は、数字を入れると候補に出ます。
-        </Text>
-      )}
+      <Text size="sm" mt={6} c="var(--ink-muted)">
+        {kind === "dc" && range.min > RECEIPT_AGE_MIN
+          ? `加入年数が短いため、${range.min}歳から${range.max}歳です。60歳未満は出せません。`
+          : `${range.min}歳から${range.max}歳です。60歳未満は出せません。`}
+      </Text>
     </div>
   );
 }

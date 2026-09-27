@@ -6,7 +6,8 @@ import { ageInCalendarYear, totalMonths, yearOfAge, type BenefitInput, type Year
 import { IntInput } from "./IntInput";
 import { IntPickerField } from "./IntPickerField";
 import { ReceiptAgeField } from "./ReceiptAgeField";
-import { isBenefitKind, KIND_LABELS } from "@/lib/parse-input";
+import { isBenefitKind } from "@/lib/parse-input";
+import { benefitKindChoices, isDedicatedDcSlot } from "./benefit-kind-options";
 import { CONTRIBUTION_END_NOTE, contributionEndBounds, FIELD_RANGES } from "@/lib/field-ranges";
 import {
   intervalOrderError,
@@ -19,11 +20,6 @@ import {
   receiptYearFromAge,
   serviceConflictsWithReceipt,
 } from "@/lib/field-validation";
-
-const KIND_OPTIONS = Object.entries(KIND_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
 
 type IntervalDraft = { startYear: string; startMonth: string; endYear: string; endMonth: string };
 
@@ -38,6 +34,7 @@ function parseYearField(raw: string, label: string) {
 export function BenefitEditor({
   index,
   benefit,
+  benefits,
   birth,
   onChange,
   onRemove,
@@ -47,6 +44,7 @@ export function BenefitEditor({
 }: {
   index: number;
   benefit: BenefitInput;
+  benefits: BenefitInput[];
   birth?: YearMonth;
   onChange: (patch: Partial<BenefitInput>) => void;
   onRemove: () => void;
@@ -202,7 +200,7 @@ export function BenefitEditor({
         <Group justify="space-between" wrap="wrap" gap="sm" align="flex-end">
           <Select
             label={`手当 ${n}`}
-            data={KIND_OPTIONS}
+            data={benefitKindChoices(isDedicatedDcSlot(benefit, benefits))}
             value={benefit.kind}
             onChange={(value) => {
               if (!value || !isBenefitKind(value)) return;

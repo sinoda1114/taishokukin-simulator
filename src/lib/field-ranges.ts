@@ -1,12 +1,14 @@
 import {
   dcMinimumReceiptAgeFromMonths,
   defaultRuleset,
-  EARLIEST_RETIREMENT_AGE,
+  totalMonths,
+  type BenefitInput,
   type BenefitKind,
 } from "@/engine";
 
-export { EARLIEST_RETIREMENT_AGE };
-export const DEFAULT_RECEIPT_AGE = 60;
+/** 画面で選べる受取年齢の下限。初期値も同じ。税の計算式とは別。 */
+export const RECEIPT_AGE_MIN = 60;
+export const DEFAULT_RECEIPT_AGE = RECEIPT_AGE_MIN;
 export const CONTRIBUTION_END_AGE_CAP = 65;
 
 export const FIELD_RANGES = {
@@ -25,7 +27,7 @@ export function generalReceiptAgeRange(birthYear: number): { min: number; max: n
   const minFromYear = FIELD_RANGES.receiptYear.min - birthYear;
   const maxFromYear = FIELD_RANGES.receiptYear.max - birthYear;
   return {
-    min: Math.max(EARLIEST_RETIREMENT_AGE, minFromYear),
+    min: Math.max(RECEIPT_AGE_MIN, minFromYear),
     max: maxFromYear,
   };
 }
@@ -44,6 +46,51 @@ export function receiptAgeRange(
     min: Math.max(general.min, minAge),
     max: Math.min(general.max, defaultRuleset.dcReceiptAgeMax),
   };
+}
+
+export function birthYearReceiptError(birthYear: number): string | null {
+  const range = generalReceiptAgeRange(birthYear);
+  if (range.min <= range.max) return null;
+  return `この生年では受取年齢${RECEIPT_AGE_MIN}歳の受取年が${FIELD_RANGES.receiptYear.max}年を超えます`;
+}
+
+export function clampReceiptAge(range: { min: number; max: number }, age: number): number | null {
+  if (range.min > range.max) return null;
+  return Math.min(range.max, Math.max(range.min, age));
+}
+
+export function receiptYearForAge(
+  birthYear: number,
+  age: number,
+  range: { min: number; max: number },
+): number | null {
+  const clamped = clampReceiptAge(range, age);
+  return clamped === null ? null : birthYear + clamped;
+}
+
+export function defaultReceiptYear(birthYear: number): number | null {
+  return receiptYearForAge(birthYear, DEFAULT_RECEIPT_AGE, generalReceiptAgeRange(birthYear));
+}
+
+export function receiptYearAfterBirthChange(
+  benefit: Pick<BenefitInput, "kind" | "receiptYear" | "serviceYears" | "intervals">,
+  previousBirthYear: number,
+  nextBirthYear: number,
+): number {
+  const months =
+    benefit.intervals && benefit.intervals.length > 0 ? totalMonths(benefit.intervals) : undefined;
+  return (
+    receiptYearForAge(
+      nextBirthYear,
+      benefit.receiptYear - previousBirthYear,
+      receiptAgeRange(nextBirthYear, benefit.kind, benefit.serviceYears ?? 10, months),
+    ) ?? benefit.receiptYear
+  );
+}
+
+/** 生年がまだ無い手当は、サンプルの生年と初期受取年齢から受取年を出す。 */
+export function receiptYearWithoutBirth(sampleBirthYear: number): number | null {
+  return defaultReceiptYear(sampleBirthYear);
 }
 
 export function contributionEndBounds(receiptAge: number | null): { min: number; max: number } {
